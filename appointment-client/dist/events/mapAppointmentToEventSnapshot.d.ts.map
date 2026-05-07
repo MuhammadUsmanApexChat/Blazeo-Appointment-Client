@@ -1,0 +1,1 @@
+{"version":3,"file":"mapAppointmentToEventSnapshot.d.ts","sourceRoot":"","sources":["../../src/events/mapAppointmentToEventSnapshot.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,yBAAyB,CAAC;AAqBpE,MAAM,MAAM,2BAA2B,GAAG,QAAQ,GAAG,YAAY,CAAC;AAElE;;;GAGG;AACH,wBAAgB,6BAA6B,CAC3C,KAAK,EAAE,oBAAoB,EAC3B,IAAI,EAAE,2BAA2B,GAChC,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,CA4CzB"}
