@@ -15,6 +15,7 @@ function normalizeBase(u) {
 }
 
 export function bootstrapBlazeoClient() {
+  debugger;
   applyBlazeoClientConfig();
 
   const envBase = normalizeBase(import.meta.env.VITE_BLAZEO_BASE_URL ?? "");

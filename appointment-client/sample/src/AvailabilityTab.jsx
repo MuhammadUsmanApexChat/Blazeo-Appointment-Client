@@ -31,7 +31,10 @@ export function AvailabilityTab() {
     if (!parts) return setError("Pick a valid date.");
     if (!effective.baseUrl) return setError("Set Base URL above.");
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
 
     setBusy(true);
     try {

@@ -136,7 +136,10 @@ export function EventTab() {
     setOutput("");
     if (!ensureBase()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     let payload;
     try {
       payload = JSON.parse(createJson);
@@ -160,7 +163,10 @@ export function EventTab() {
     setOutput("");
     if (!ensureBase()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     let payload;
     try {
       payload = JSON.parse(rescheduleJson);
@@ -186,10 +192,17 @@ export function EventTab() {
     if (!id) return setError("Enter Blazeo event id to cancel.");
     if (!ensureBase()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     setBusy(true);
     try {
-      const result = await cancelAppointmentEventAsync(id, { ...connectionOpts });
+      const result = await cancelAppointmentEventAsync(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
       setOutput(JSON.stringify(result, null, 2));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));
     } finally {
@@ -207,7 +220,10 @@ export function EventTab() {
     if (!searchTo) return setError("Pick end date.");
     if (!ensureBase()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
 
     const optsFromJson = safeJsonParse(searchFiltersJson, {});
     const startDateFrom = new Date(`${searchFrom}T00:00:00.000Z`).toISOString();

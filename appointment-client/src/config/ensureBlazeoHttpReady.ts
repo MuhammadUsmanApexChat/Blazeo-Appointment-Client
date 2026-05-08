@@ -14,6 +14,17 @@ export type EnsureBlazeoHttpOptions = {
 export function ensureBlazeoHttpReady(options: EnsureBlazeoHttpOptions = {}):
   | { ok: true; baseUrl: string; consumer?: string }
   | { ok: false; error: string } {
+  // Hard-prefer explicit args (call-site can bypass any module-resolution mismatch).
+  const explicitBase = options.baseUrl?.trim().replace(/\/+$/, "");
+  const explicitConsumer = options.consumer?.trim() || undefined;
+  if (explicitBase) {
+    configure({
+      baseUrl: explicitBase,
+      ...(explicitConsumer ? { consumer: explicitConsumer } : {}),
+    });
+    return { ok: true, baseUrl: explicitBase, ...(explicitConsumer ? { consumer: explicitConsumer } : {}) };
+  }
+
   const { baseUrl, consumer } = resolveBlazeoConnection(options);
   if (!baseUrl) {
     return {

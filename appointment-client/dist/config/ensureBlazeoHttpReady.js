@@ -6,6 +6,16 @@ import { resolveBlazeoConnection } from "../calendar/createCalendar.js";
  * then `blazeoClientDefaults` — so file defaults apply even if the host never called `configure`.
  */
 export function ensureBlazeoHttpReady(options = {}) {
+    // Hard-prefer explicit args (call-site can bypass any module-resolution mismatch).
+    const explicitBase = options.baseUrl?.trim().replace(/\/+$/, "");
+    const explicitConsumer = options.consumer?.trim() || undefined;
+    if (explicitBase) {
+        configure({
+            baseUrl: explicitBase,
+            ...(explicitConsumer ? { consumer: explicitConsumer } : {}),
+        });
+        return { ok: true, baseUrl: explicitBase, ...(explicitConsumer ? { consumer: explicitConsumer } : {}) };
+    }
     const { baseUrl, consumer } = resolveBlazeoConnection(options);
     if (!baseUrl) {
         return {

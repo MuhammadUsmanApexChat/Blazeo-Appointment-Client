@@ -19,7 +19,10 @@ export function ParticipantInfoTab() {
     if (!effective.baseUrl) return setError("Set Base URL in the connection card above.");
 
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     setBusy(true);
     try {
       const info = await CalendarParticipantModel.getInfoByCalendar(id);

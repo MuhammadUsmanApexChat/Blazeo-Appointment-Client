@@ -27,7 +27,10 @@ export function OpeningHoursTab() {
       return;
     }
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     setBusy(true);
     try {
       const res = await fetchCalendarWithOpeningHours(id, {

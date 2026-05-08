@@ -221,11 +221,18 @@ export function FetchCalendarTab() {
     }
     if (!ensureBaseConfigured()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
 
     setBusy(true);
     try {
-      const details = await fetchCalendarDetails(id, connectionOpts);
+      const details = await fetchCalendarDetails(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
 
       if (!details.meta.ok && details.meta.reason === "missing_base_url") {
         setError(mapBlazeoDemoError(details.meta.detail ?? ""));
@@ -233,7 +240,10 @@ export function FetchCalendarTab() {
       }
 
       if (details.cal == null) {
-        ensureBlazeoHttpReady(connectionOpts);
+        ensureBlazeoHttpReady({
+          baseUrl: effective.baseUrl,
+          ...(effective.consumer ? { consumer: effective.consumer } : {}),
+        });
         const raw = await CalendarModel.getRaw(id);
         setNote("CalendarModel.get returned null. Showing CalendarModel.getRaw only.");
         setOutput(toDisplayJson(raw));
@@ -294,7 +304,10 @@ export function FetchCalendarTab() {
     }
     if (!ensureBaseConfigured()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
 
     setBusy(true);
     try {
@@ -311,7 +324,11 @@ export function FetchCalendarTab() {
             const id = c.calendarId ?? String(c.id ?? "");
             if (!id) return { calendar: getSnapshot(c), openingHours: [], meta: { error: "no id" } };
             try {
-              const b = await fetchCalendarDetails(id, connectionOpts);
+              const b = await fetchCalendarDetails(id, {
+                ...connectionOpts,
+                baseUrl: effective.baseUrl,
+                ...(effective.consumer ? { consumer: effective.consumer } : {}),
+              });
               return {
                 calendarView: b.calendarView,
                 calendar: b.calendar ?? getSnapshot(c),
@@ -382,7 +399,10 @@ export function FetchCalendarTab() {
     setMutateOutput("");
     if (!ensureBaseConfigured()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     let payload;
     try {
       payload = JSON.parse(updateJson);
@@ -392,7 +412,11 @@ export function FetchCalendarTab() {
     }
     setBusy(true);
     try {
-      const result = await updateCalendarAsync(payload, { ...connectionOpts });
+      const result = await updateCalendarAsync(payload, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
       if (result.ok) {
         setMutateNote("updateCalendarAsync → POST /Calendar/Event/Update");
         setMutateOutput(
@@ -428,7 +452,10 @@ export function FetchCalendarTab() {
     }
     if (!ensureBaseConfigured()) return;
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     if (
       !window.confirm(
         `Delete calendar "${id}"?\n\nThis calls GET /Calendar/Remove (cannot be undone on the server).`
@@ -438,7 +465,11 @@ export function FetchCalendarTab() {
     }
     setBusy(true);
     try {
-      const result = await deleteCalendarAsync(id, { ...connectionOpts });
+      const result = await deleteCalendarAsync(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
       if (result.ok) {
         setMutateNote("deleteCalendarAsync → GET /Calendar/Remove");
         setMutateOutput(JSON.stringify({ calendarId: id, apiResponse: result.apiResponse ?? null }, null, 2));

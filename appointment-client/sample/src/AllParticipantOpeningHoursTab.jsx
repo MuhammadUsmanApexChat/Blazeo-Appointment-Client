@@ -19,10 +19,17 @@ export function AllParticipantOpeningHoursTab() {
     if (!effective.baseUrl) return setError("Set Base URL in the connection card above.");
 
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     setBusy(true);
     try {
-      const res = await getAllParticipantOpeningHours(id, connectionOpts);
+      const res = await getAllParticipantOpeningHours(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
       setOutput(JSON.stringify(res, null, 2));
     } catch (err) {
       setError(mapBlazeoDemoError(err instanceof Error ? err.message : String(err)));

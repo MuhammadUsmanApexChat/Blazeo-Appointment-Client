@@ -6,6 +6,6 @@
  * @example baseUrl: "https://apptscheduling.azurewebsites.net"
  */
 export const blazeoClientConfig = {
-    baseUrl: "",
-    consumer: "",
+    baseUrl: "https://apptscheduling.azurewebsites.net",
+    consumer: "smarthub",
 };

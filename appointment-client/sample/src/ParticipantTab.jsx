@@ -42,10 +42,17 @@ export function ParticipantTab() {
       return;
     }
     configureBlazeoFromEffective(effective);
-    ensureBlazeoHttpReady(connectionOpts);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
     setBusy(true);
     try {
-      const res = await getParticipants(id, connectionOpts);
+      const res = await getParticipants(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
       setOutput(toDisplayJson(res));
     } catch (err) {
       setError(mapBlazeoDemoError(err instanceof Error ? err.message : String(err)));

@@ -73,7 +73,10 @@ export function CreateCalendarTab() {
     }
     if (!localOnly) {
       configureBlazeoFromEffective(effective);
-      ensureBlazeoHttpReady(connectionOpts);
+      ensureBlazeoHttpReady({
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
     }
 
     const hasRelations = (payload.members?.length ?? 0) > 0 || (payload.openingHours?.length ?? 0) > 0;
@@ -82,8 +85,18 @@ export function CreateCalendarTab() {
     setBusy(true);
     try {
       const result = useRelations
-        ? await createCalendarWithRelationsAsync(payload, { localOnly, ...connectionOpts })
-        : await createCalendarAsync(payload, { localOnly, ...connectionOpts });
+        ? await createCalendarWithRelationsAsync(payload, {
+            localOnly,
+            ...connectionOpts,
+            baseUrl: effective.baseUrl,
+            ...(effective.consumer ? { consumer: effective.consumer } : {}),
+          })
+        : await createCalendarAsync(payload, {
+            localOnly,
+            ...connectionOpts,
+            baseUrl: effective.baseUrl,
+            ...(effective.consumer ? { consumer: effective.consumer } : {}),
+          });
       setOutput(JSON.stringify(result.ok ? getSnapshot(result.calendar) : result, null, 2));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));
     } finally {

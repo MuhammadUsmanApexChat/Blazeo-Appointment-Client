@@ -3,6 +3,7 @@ import {
   BlazeoConnectionProvider,
   useBlazeoConnection,
 } from "./BlazeoConnectionSettings.jsx";
+import { ensureBlazeoHttpReady, getConfig } from "appointment-client";
 import { CalendarTab } from "./CalendarTab.jsx";
 import { EventTab } from "./EventTab.jsx";
 import { ParticipantTab } from "./ParticipantTab.jsx";
@@ -35,7 +36,14 @@ function ConnectionSettingsCard() {
     setBaseUrlInput,
     setConsumerInput,
     effective,
+    connectionOpts,
   } = useBlazeoConnection();
+
+  const ready = ensureBlazeoHttpReady({
+    baseUrl: effective.baseUrl,
+    ...(effective.consumer ? { consumer: effective.consumer } : {}),
+  });
+  const cfg = getConfig?.() ?? null;
 
   return (
     <div className="card connection-card">
@@ -55,6 +63,12 @@ function ConnectionSettingsCard() {
             · Consumer: <code>{effective.consumer}</code>
           </>
         ) : null}
+      </p>
+      <p className="muted small">
+        Debug: <code>connectionOpts</code> → <code>{JSON.stringify(connectionOpts)}</code> ·{" "}
+        <code>ensureBlazeoHttpReady</code> →{" "}
+        <code>{ready.ok ? "ok" : "missing_base_url"}</code> · <code>getConfig().baseUrl</code> →{" "}
+        <code>{cfg?.baseUrl ?? "(null)"}</code>
       </p>
       <div className="connection-card__row">
         <label className="form__label">

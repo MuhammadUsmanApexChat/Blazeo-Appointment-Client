@@ -43,6 +43,9 @@ export default defineConfig(({ mode }) => {
       preserveSymlinks: false,
       dedupe: ["@blazeo.com/calendar-client", "mobx", "mobx-state-tree"],
       alias: {
+        // Ensure Vite/Rollup can always resolve the local workspace package.
+        // (Avoids `Failed to resolve import "appointment-client"` during dev/build.)
+        "appointment-client": path.resolve(__dirname, "../dist/index.js"),
         "@blazeo.com/calendar-client": calendarClientEntry(),
       },
     },
