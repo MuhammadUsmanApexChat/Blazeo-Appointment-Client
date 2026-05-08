@@ -56,6 +56,7 @@ export interface UnifiedCalendarMember {
   status: number | null;
   /** Full row from Participants/GetInfo (plain object). */
   participantInfo?: Record<string, unknown> | null;
+  __typename?: string;
 }
 
 export interface UnifiedParticipantWithHours extends UnifiedCalendarMember {
@@ -63,13 +64,20 @@ export interface UnifiedParticipantWithHours extends UnifiedCalendarMember {
 }
 
 export interface UnifiedOpeningHourRow {
+  id?: number | string;
+  createdOn?: string;
+  modifiedOn?: string;
   member: number | string;
+  openingHourId?: string;
+  calendarId?: string;
+  participantId?: string;
   days: string[];
   startHour: number;
   startMinute: number;
   endHour: number;
   endMinute: number;
   off: boolean;
+  __typename?: string;
 }
 
 function dayOrderIndex(d: string): number {
@@ -253,6 +261,7 @@ export function buildUnifiedCalendarView(
         email: email ?? null,
         status: deriveMemberStatus({}, inf),
         participantInfo: participantInfoPlain,
+        __typename: "Member",
       });
     }
   }
@@ -277,13 +286,20 @@ export function buildUnifiedCalendarView(
     const off = Boolean(pick(row, "off", "Off"));
 
     openingHours.push({
+      id: pick(row, "id", "Id") ?? 0,
+      createdOn: pick(row, "createdOn", "CreatedOn", "created_on") ?? "0001-01-01T00:00:00.000Z",
+      modifiedOn: pick(row, "modifiedOn", "ModifiedOn", "modified_on") ?? "0001-01-01T00:00:00.000Z",
       member: memberId,
+      openingHourId: pick(row, "openingHourId", "OpeningHourId", "opening_hour_id") ?? "",
+      calendarId: pick(row, "calendarId", "CalendarId", "calendar_id") ?? "",
+      participantId: pick(row, "participantId", "ParticipantId", "participant_id") ?? "",
       days,
       startHour,
       startMinute,
       endHour,
       endMinute,
       off,
+      __typename: "OpeningHour",
     });
   }
 
@@ -294,6 +310,7 @@ export function buildUnifiedCalendarView(
     members,
     openingHours,
     participants: buildNestedParticipants(members, openingHours),
+    __typename: "Calendar",
   } as UnifiedCalendarView;
 
   return view;
@@ -306,17 +323,23 @@ function buildNestedParticipants(
   members: UnifiedCalendarMember[],
   openingHours: UnifiedOpeningHourRow[]
 ): UnifiedParticipantWithHours[] {
-  return members.map((m) => {
-    const hours = openingHours.filter((oh) => {
+  const nested: UnifiedParticipantWithHours[] = [];
+  members.forEach((m) => {
+    const hoursForThisMember = openingHours.filter((oh) => {
       const mid = String(oh.member).trim().toLowerCase();
       const pid = String(m.id).trim().toLowerCase();
       return mid === pid;
     });
     // Remove the 'member' field from the nested opening hours as it's redundant.
-    const nestedHours = hours.map(({ member, ...rest }) => rest as any);
-    return {
+    const nestedHours = hoursForThisMember.map(({ member, ...rest }) => ({
+      ...rest,
+      __typename: "OpeningHour"
+    }));
+    nested.push({
       ...m,
       openingHours: nestedHours,
-    };
+      __typename: "Member",
+    } as UnifiedParticipantWithHours);
   });
+  return nested;
 }

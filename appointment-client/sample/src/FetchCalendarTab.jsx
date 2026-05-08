@@ -59,6 +59,7 @@ function explainFetchFailure(err, configuredBaseUrl) {
 
 /** Opening hours list from `calendarView`, embedded `calendar.openingHours`, or legacy `openingHours`. */
 function pickOpeningHoursListFromBundle(parsed) {
+  if (Array.isArray(parsed?.openingHours)) return parsed.openingHours;
   const fromView = parsed?.calendarView?.openingHours;
   if (Array.isArray(fromView) && fromView.length > 0) return fromView;
   const fromCal = parsed?.calendar?.openingHours;
@@ -234,12 +235,13 @@ export function FetchCalendarTab() {
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
       });
 
-      if (!details.meta.ok && details.meta.reason === "missing_base_url") {
-        setError(mapBlazeoDemoError(details.meta.detail ?? ""));
+      const meta = details?._meta ?? details?.meta;
+      if (meta && !meta.ok && meta.reason === "missing_base_url") {
+        setError(mapBlazeoDemoError(meta.detail ?? ""));
         return;
       }
 
-      if (details.cal == null) {
+      if (!details) {
         ensureBlazeoHttpReady({
           baseUrl: effective.baseUrl,
           ...(effective.consumer ? { consumer: effective.consumer } : {}),
@@ -250,40 +252,18 @@ export function FetchCalendarTab() {
         return;
       }
 
-      const snap = getSnapshot(details.cal);
-      setLastFetchUpdatePayload(JSON.stringify(calendarSnapshotToUpdatePayload(snap), null, 2));
+      const snap = details._cal ? getSnapshot(details._cal) : null;
+      if (snap) {
+        setLastFetchUpdatePayload(JSON.stringify(calendarSnapshotToUpdatePayload(snap), null, 2));
+      }
 
-      const payload = {
-        calendarView: details.calendarView,
-        calendar: details.calendar,
-        openingHours: details.openingHours,
-        allParticipantOpeningHours: details.allParticipantOpeningHours,
-        openingHoursApiResponse: details.participantOpeningHoursResponse ?? null,
-        participants: (details.participants ?? []).map((p) => (isStateTreeNode(p) ? getSnapshot(p) : p)),
-        participantsInfo: Array.isArray(details.participantsInfo)
-          ? details.participantsInfo.map((p) => (isStateTreeNode(p) ? getSnapshot(p) : p))
-          : details.participantsInfo ?? null,
-        __openingHoursMeta: {
-          fromCalendarGet: details.fromCalendarGet,
-          fromParticipantApi: details.fromParticipantApi,
-          calendarViewUsedAllParticipantOpeningHours: details.meta?.calendarViewUsedAllParticipantOpeningHours,
-          embeddedCount: details.embeddedFromGet?.length ?? 0,
-          resolvedCount: details.openingHours?.length ?? 0,
-        },
-        meta: details.meta,
-      };
-
-      setOutput(toDisplayJson(payload));
-      setNote(
-        (details.calendarView
-          ? "Use `calendarView`: one object (calendar + nested participants with openingHours). "
-          : "") +
-          (details.fromCalendarGet
-          ? "Opening hours: embedded on GET /Calendar/Get; participants from GET /Calendar/Participant/All. Single bundle in output."
-          : details.fromParticipantApi
-            ? "Opening hours: GET /Calendar/Participant/OpeningHours/Get; participants from GET /Calendar/Participant/All. Single bundle in output."
-            : "Calendar loaded; opening hours empty from both embed + participant API; participants from GET /Calendar/Participant/All.")
-      );
+      // If it's the new flat response, just use it directly for output.
+      setOutput(toDisplayJson(details));
+      
+      // We can still try to extract meta for the UI if needed
+      if (meta) {
+        setNote(`Source: ${meta.calendarViewUsedAllParticipantOpeningHours ? "AllParticipantOpeningHours" : "Embedded/ParticipantApi"}`);
+      }
     } catch (err) {
       setError(explainFetchFailure(err, effective.baseUrl));
     } finally {
