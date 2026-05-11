@@ -22,13 +22,4 @@ export declare function normalizeParticipantOpeningHoursResponse(res: any): {
  * 1. Prefer rows embedded on **GET /Calendar/Get** (`CalendarModel.getRaw` payload — `@blazeo.com/calendar-client` MST omits them).
  * 2. If missing/empty, calls **`calendar.getParticipantOpeningHours()`** (`GET /Calendar/Participant/OpeningHours/Get`).
  */
-export declare function fetchCalendarWithOpeningHours(calendarId: string, options?: any): Promise<{
-    rawGet?: any;
-    calendar: any;
-    cal: any;
-    openingHours: any[];
-    embeddedFromGet: any[];
-    fromCalendarGet: boolean;
-    fromParticipantApi: boolean;
-    participantOpeningHoursResponse: any;
-}>;
+export declare function fetchCalendarWithOpeningHours(calendarId: string, options?: any): Promise<any>;

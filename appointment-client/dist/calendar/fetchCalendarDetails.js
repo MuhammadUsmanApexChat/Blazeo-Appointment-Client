@@ -1,8 +1,8 @@
 import { CalendarModel } from "@blazeo.com/calendar-client";
-import { getSnapshot } from "mobx-state-tree";
 import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { unwrapCalendarGetData, pickOpeningHoursArrayFromCalendarPayload, normalizeParticipantOpeningHoursResponse, } from "./fetchCalendarWithOpeningHours.js";
 import { buildUnifiedCalendarView } from "./buildUnifiedCalendarView.js";
+import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
 /**
  * Normalizes the REST envelope from `calendar.getParticipantOpeningHours()`
  * (`GET /Calendar/Participant/OpeningHours/Get`) into a plain row array.
@@ -105,18 +105,16 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
     }
     const fetchParticipantsInfo = includeParticipantsInfo || includeUnifiedCalendarView;
     const fetchAllHours = includeUnifiedCalendarView && preferAllParticipantOpeningHours;
-    // Calendar: `GET /Calendar/Get` is used twice (model + raw for embed) — run in parallel.
-    const [cal, rawRes] = await Promise.all([
-        CalendarModel.get(calendarId),
-        CalendarModel.getRaw(calendarId),
-    ]);
-    if (cal == null) {
+    // Calendar: `GET /Calendar/Get` is used to get the raw data first.
+    const rawRes = await CalendarModel.getRaw(calendarId);
+    const payload = unwrapCalendarGetData(rawRes);
+    if (!payload) {
         return {
             calendar: null,
             cal: null,
             calendarView: null,
             openingHours: [],
-            participants: [],
+            participants: null,
             participantsInfo: null,
             allParticipantOpeningHours: null,
             embeddedFromGet: [],
@@ -127,7 +125,9 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
             meta: { ok: false, reason: "calendar_not_found" },
         };
     }
-    const payload = unwrapCalendarGetData(rawRes);
+    // Build the model instance manually to ensure the environment is correctly set.
+    // The static CalendarModel.get in calendar-client has a bug where it wraps env in { env: ... }.
+    const cal = CalendarModel.create({ ...payload, calendarId }, { baseUrl: conn.baseUrl, consumer: conn.consumer });
     const embedded = pickOpeningHoursArrayFromCalendarPayload(payload) ?? [];
     let participantOpeningHoursResponse = null;
     let resolved = embedded.length > 0 ? embedded : null;
@@ -143,17 +143,70 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
     const participantsViaGetPromise = includeUnifiedCalendarView && typeof getCalPart === "function"
         ? getCalPart.call(CalendarModel, calendarId)
         : Promise.resolve(null);
-    const [participants, participantsViaGet, participantsInfo, allHoursRaw] = await Promise.all([
-        CalendarModel.getParticipants(calendarId),
+    const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw] = await Promise.all([
+        cal.getParticipants(),
         participantsViaGetPromise,
-        fetchParticipantsInfo ? CalendarModel.getParticipantsInfo(calendarId) : Promise.resolve(null),
-        fetchAllHours ? CalendarModel.getAllParticipantOpeningHours(calendarId) : Promise.resolve(null),
+        fetchParticipantsInfo ? cal.getParticipantsInfo() : Promise.resolve(null),
+        fetchAllHours ? cal.getAllParticipantOpeningHours() : Promise.resolve(null),
     ]);
-    const snap = getSnapshot(cal);
-    const calendar = { ...snap, openingHours };
-    const participantList = mergeParticipantSnapshots(unwrapModelList(participants), unwrapModelList(participantsViaGet));
-    const infoUnwrapped = fetchParticipantsInfo ? unwrapModelList(participantsInfo) : [];
-    const infoListForView = infoUnwrapped.length > 0 ? infoUnwrapped : null;
+    const participantList = mergeParticipantSnapshots(unwrapModelList(participantsRaw), unwrapModelList(participantsViaGet));
+    const infoList = unwrapModelList(participantsInfoRaw);
+    // Merge participantList and infoList to ensure we have all members
+    const mergedParticipantsMap = new Map();
+    // Prefer the participantId GUID; fall back to numeric id.
+    const getAnyId = (obj) => obj.participantId ?? obj.ParticipantId ?? obj.participant_id ?? obj.id ?? obj.Id;
+    // 1. Add from standard list
+    participantList.forEach((p) => {
+        const id = getAnyId(p);
+        if (id) {
+            mergedParticipantsMap.set(String(id).toLowerCase(), {
+                id: id,
+                name: p.name ?? p.Name ?? p.alias ?? p.Alias ?? "Member",
+                email: p.email ?? p.Email,
+                status: p.status ?? p.Status ?? 0,
+            });
+        }
+    });
+    // 2. Add from info list (fallback/enrich)
+    infoList.forEach((i) => {
+        const id = getAnyId(i);
+        if (!id)
+            return;
+        const key = String(id).toLowerCase();
+        const existing = mergedParticipantsMap.get(key);
+        if (!existing) {
+            mergedParticipantsMap.set(key, {
+                id: id,
+                name: i.alias || i.Alias || i.name || i.Name || "Member",
+                email: i.email || i.Email,
+                status: i.status ?? i.Status ?? (i.isApproved ? 1 : 0),
+            });
+        }
+        else {
+            // Enrich existing with email/name if missing
+            if (!existing.email)
+                existing.email = i.email || i.Email;
+            if (!existing.name || existing.name === "Member") {
+                existing.name = i.alias || i.Alias || i.name || i.Name || existing.name;
+            }
+        }
+    });
+    // 3. Synthetic Fallback: If openingHours reference a member we don't have, add them.
+    openingHours.forEach((oh) => {
+        const mid = oh.member ?? oh.Member ?? oh.participantId ?? oh.ParticipantId;
+        if (mid) {
+            const key = String(mid).toLowerCase();
+            if (!mergedParticipantsMap.has(key)) {
+                mergedParticipantsMap.set(key, {
+                    id: mid,
+                    name: "Member",
+                    email: null,
+                    status: 0,
+                });
+            }
+        }
+    });
+    const finalParticipantList = Array.from(mergedParticipantsMap.values());
     const allParticipantOpeningHours = fetchAllHours ? normalizeAllParticipantOpeningHoursResult(allHoursRaw) : null;
     const openingHoursForUnifiedView = includeUnifiedCalendarView &&
         preferAllParticipantOpeningHours &&
@@ -161,37 +214,34 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         allParticipantOpeningHours.length > 0
         ? allParticipantOpeningHours
         : openingHours;
-    const calendarView = includeUnifiedCalendarView
-        ? buildUnifiedCalendarView(snap, openingHoursForUnifiedView, participantList, infoListForView)
+    const calendarViewRaw = includeUnifiedCalendarView
+        ? buildUnifiedCalendarView(payload, openingHoursForUnifiedView, finalParticipantList, infoList)
         : null;
+    const calendarView = calendarViewRaw ? mapToDesiredCalendarResponse(calendarViewRaw, calendarViewRaw.openingHours, calendarViewRaw.members) : null;
     const unifiedUsedAllEndpoint = includeUnifiedCalendarView &&
         preferAllParticipantOpeningHours &&
         allParticipantOpeningHours != null &&
         allParticipantOpeningHours.length > 0;
-    return {
-        calendar,
-        cal,
-        calendarView,
-        openingHours,
-        participants: participantList,
-        participantsInfo,
-        allParticipantOpeningHours,
-        embeddedFromGet: embedded,
-        fromCalendarGet: embedded.length > 0,
-        fromParticipantApi: embedded.length === 0 && openingHours.length > 0 && participantOpeningHoursResponse != null,
-        participantOpeningHoursResponse,
-        meta: {
-            ok: true,
-            /** `calendarView.openingHours` came from OpeningHours/All/Get */
-            calendarViewUsedAllParticipantOpeningHours: unifiedUsedAllEndpoint,
-            ...(calendarView != null
-                ? {
-                    calendarViewMemberCount: calendarView.members.length,
-                    calendarViewOpeningHourCount: calendarView.openingHours.length,
-                }
-                : {}),
+    if (!calendarView)
+        return null;
+    // Attach metadata as non-enumerable properties so they don't show up in JSON.stringify
+    // but are still accessible for debugging if needed.
+    Object.defineProperties(calendarView, {
+        _cal: { value: cal, enumerable: false },
+        _participants: { value: participantList, enumerable: false },
+        _openingHours: { value: openingHours, enumerable: false },
+        _rawGet: { value: rawRes, enumerable: false },
+        _meta: {
+            value: {
+                ok: true,
+                calendarViewUsedAllParticipantOpeningHours: unifiedUsedAllEndpoint,
+                calendarViewMemberCount: calendarView.members.length,
+                calendarViewOpeningHourCount: calendarView.openingHours.length,
+            },
+            enumerable: false
         },
-    };
+    });
+    return calendarView;
 }
 /**
  * Single return value only: unified calendar **`calendarView`** —
@@ -206,7 +256,7 @@ export async function fetchCalendarBundle(calendarId, connection) {
         preferAllParticipantOpeningHours: true,
         ...connection,
     });
-    if (!d.meta.ok)
+    if (!d)
         return null;
-    return d.calendarView;
+    return d;
 }

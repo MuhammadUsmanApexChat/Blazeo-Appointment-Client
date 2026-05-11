@@ -28,65 +28,7 @@ export declare function fetchCalendarDetails(calendarId: string, options?: {
     /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
     baseUrl?: string;
     consumer?: string;
-}): Promise<{
-    calendar: null;
-    cal: null;
-    calendarView: UnifiedCalendarView | null;
-    openingHours: any[];
-    participants: any[];
-    participantsInfo: any;
-    allParticipantOpeningHours: any[] | null;
-    embeddedFromGet: any[];
-    fromCalendarGet: boolean;
-    fromParticipantApi: boolean;
-    participantOpeningHoursResponse: any;
-    rawGet: any;
-    meta: {
-        ok: false;
-        reason: "missing_base_url";
-        detail: string;
-    };
-} | {
-    calendar: null;
-    cal: null;
-    calendarView: UnifiedCalendarView | null;
-    openingHours: any[];
-    participants: any[];
-    participantsInfo: any;
-    allParticipantOpeningHours: any[] | null;
-    embeddedFromGet: any[];
-    fromCalendarGet: boolean;
-    fromParticipantApi: boolean;
-    participantOpeningHoursResponse: any;
-    rawGet: any;
-    meta: {
-        ok: false;
-        reason: string;
-        detail?: undefined;
-    };
-} | {
-    calendar: any;
-    cal: any;
-    calendarView: UnifiedCalendarView | null;
-    openingHours: any[];
-    participants: any[];
-    participantsInfo: unknown;
-    allParticipantOpeningHours: any[] | null;
-    embeddedFromGet: any[];
-    fromCalendarGet: boolean;
-    fromParticipantApi: boolean;
-    participantOpeningHoursResponse: any;
-    meta: {
-        calendarViewMemberCount?: number | undefined;
-        calendarViewOpeningHourCount?: number | undefined;
-        ok: true;
-        /** `calendarView.openingHours` came from OpeningHours/All/Get */
-        calendarViewUsedAllParticipantOpeningHours: boolean;
-        reason?: undefined;
-        detail?: undefined;
-    };
-    rawGet?: undefined;
-}>;
+}): Promise<any>;
 /**
  * Single return value only: unified calendar **`calendarView`** —
  * snapshot fields plus **`members`** (with **`participantInfo`**) plus **`openingHours`**

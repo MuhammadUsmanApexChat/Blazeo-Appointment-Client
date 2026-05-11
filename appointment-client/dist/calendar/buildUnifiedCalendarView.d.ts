@@ -6,18 +6,26 @@ export interface UnifiedCalendarMember {
     status: number | null;
     /** Full row from Participants/GetInfo (plain object). */
     participantInfo?: Record<string, unknown> | null;
+    __typename?: string;
 }
 export interface UnifiedParticipantWithHours extends UnifiedCalendarMember {
     openingHours: UnifiedOpeningHourRow[];
 }
 export interface UnifiedOpeningHourRow {
+    id?: number | string;
+    createdOn?: string;
+    modifiedOn?: string;
     member: number | string;
+    openingHourId?: string;
+    calendarId?: string;
+    participantId?: string;
     days: string[];
     startHour: number;
     startMinute: number;
     endHour: number;
     endMinute: number;
     off: boolean;
+    __typename?: string;
 }
 export type UnifiedCalendarView = Record<string, unknown> & {
     members: UnifiedCalendarMember[];

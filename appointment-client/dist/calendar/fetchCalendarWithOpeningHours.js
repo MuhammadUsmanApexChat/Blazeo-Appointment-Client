@@ -1,6 +1,6 @@
 import { CalendarModel } from "@blazeo.com/calendar-client";
-import { getSnapshot } from "mobx-state-tree";
-import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import { resolveBlazeoConnection } from "./createCalendar.js";
+import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
 /**
  * Unwrap nested REST shapes: `res.data`, `res.Data`, or `res.data.data`.
  */
@@ -67,13 +67,22 @@ export function normalizeParticipantOpeningHoursResponse(res) {
  */
 export async function fetchCalendarWithOpeningHours(calendarId, options = {}) {
     const { includeRawGet = false, baseUrl, consumer } = options;
-    const ready = ensureBlazeoHttpReady({ baseUrl, consumer });
-    if (!ready.ok) {
-        throw new Error(ready.error);
-    }
+    const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection({ baseUrl, consumer });
     const rawRes = await CalendarModel.getRaw(calendarId);
-    const cal = await CalendarModel.get(calendarId);
     const payload = unwrapCalendarGetData(rawRes);
+    let cal = null;
+    if (payload) {
+        // Manually create the model instance to fix a bug in calendar-client static get.
+        cal = CalendarModel.create({ ...payload, calendarId }, { baseUrl: resolvedBase, consumer: resolvedConsumer });
+    }
+    if (cal == null) {
+        return {
+            calendar: null,
+            openingHours: [],
+            raw: rawRes,
+            meta: { ok: false, reason: "calendar_not_found" },
+        };
+    }
     const embedded = pickOpeningHoursArrayFromCalendarPayload(payload) ?? [];
     let resolved = embedded.length > 0 ? embedded : null;
     let participantRes = null;
@@ -85,16 +94,21 @@ export async function fetchCalendarWithOpeningHours(calendarId, options = {}) {
             resolved = list;
     }
     const openingHours = Array.isArray(resolved) ? resolved : [];
-    const snap = cal != null ? getSnapshot(cal) : null;
-    const calendar = snap != null ? { ...snap, openingHours } : null;
-    return {
-        calendar,
-        cal,
-        openingHours,
-        embeddedFromGet: embedded,
-        fromCalendarGet: embedded.length > 0,
-        fromParticipantApi: embedded.length === 0 && openingHours.length > 0 && participantRes != null,
-        participantOpeningHoursResponse: participantRes,
-        ...(includeRawGet ? { rawGet: rawRes } : {}),
-    };
+    const mappedOpeningHours = openingHours.map(oh => ({
+        ...oh,
+    }));
+    const rawMembers = payload?.members ?? payload?.Members ?? payload?.participants ?? payload?.Participants;
+    const mappedMembers = Array.isArray(rawMembers)
+        ? rawMembers.map((m) => ({ ...m }))
+        : [];
+    const calendar = mapToDesiredCalendarResponse(payload, openingHours, mappedMembers);
+    if (!calendar)
+        return null;
+    Object.defineProperties(calendar, {
+        _cal: { value: cal, enumerable: false },
+        _openingHours: { value: openingHours, enumerable: false },
+        _embeddedFromGet: { value: embedded, enumerable: false },
+        _rawGet: { value: rawRes, enumerable: false },
+    });
+    return calendar;
 }

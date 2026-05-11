@@ -37,13 +37,18 @@ function coerceMemberId(v: unknown): number | string | null {
  * Canonical member id used in both `members[].id` and `openingHours[].member`.
  */
 function resolveParticipantMemberId(calPart: Record<string, any>): number | string {
-  const n = pick<number | null>(calPart, "id", "Id");
-  if (n != null && typeof n === "number" && !Number.isNaN(n)) return n;
+  // Prefer the participantId GUID when available — it is the stable cross-endpoint identifier.
   const sid = pick<string>(calPart, "participantId", "ParticipantId", "participant_id");
   if (sid != null && String(sid).trim() !== "") {
     const t = String(sid).trim();
     if (/^\d+$/.test(t)) return Number(t);
     return t;
+  }
+  // Fall back to id — accepts both numeric and string (e.g. a GUID stored as id).
+  const n = pick<number | string | null>(calPart, "id", "Id");
+  if (n != null) {
+    if (typeof n === "number" && !Number.isNaN(n)) return n;
+    if (typeof n === "string" && n.trim() !== "") return n.trim();
   }
   return "";
 }

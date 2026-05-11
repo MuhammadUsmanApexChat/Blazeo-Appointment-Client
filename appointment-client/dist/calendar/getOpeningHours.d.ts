@@ -5,4 +5,4 @@
 export declare function getOpeningHours(calendarId: string, options?: {
     baseUrl?: string;
     consumer?: string;
-}): Promise<any[]>;
+}): Promise<any>;

@@ -304,23 +304,14 @@ export function FetchCalendarTab() {
             const id = c.calendarId ?? String(c.id ?? "");
             if (!id) return { calendar: getSnapshot(c), openingHours: [], meta: { error: "no id" } };
             try {
+              // fetchCalendarDetails now returns the flat unified view directly
               const b = await fetchCalendarDetails(id, {
                 ...connectionOpts,
                 baseUrl: effective.baseUrl,
                 ...(effective.consumer ? { consumer: effective.consumer } : {}),
               });
-              return {
-                calendarView: b.calendarView,
-                calendar: b.calendar ?? getSnapshot(c),
-                openingHours: b.openingHours,
-                participants: (b.participants ?? []).map((p) => (isStateTreeNode(p) ? getSnapshot(p) : p)),
-                __openingHoursMeta: {
-                  fromCalendarGet: b.fromCalendarGet,
-                  fromParticipantApi: b.fromParticipantApi,
-                  calendarViewUsedAllParticipantOpeningHours: b.meta?.calendarViewUsedAllParticipantOpeningHours,
-                },
-                meta: b.meta,
-              };
+              // b IS the unified calendarView: members/openingHours/participants at top level
+              return b ?? { calendar: getSnapshot(c), openingHours: [], meta: { error: "null response" } };
             } catch (err) {
               return {
                 calendar: getSnapshot(c),

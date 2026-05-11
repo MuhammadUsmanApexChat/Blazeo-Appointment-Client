@@ -1,6 +1,6 @@
 import { CalendarModel } from "@blazeo.com/calendar-client";
-import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
-import { normalizeParticipantOpeningHoursResponse } from "./fetchCalendarWithOpeningHours.js";
+import { resolveBlazeoConnection } from "./createCalendar.js";
+import { unwrapCalendarGetData, normalizeParticipantOpeningHoursResponse } from "./fetchCalendarWithOpeningHours.js";
 /**
  * Direct wrapper around `calendar.getParticipantOpeningHours()` for a calendar id.
  *
@@ -10,22 +10,17 @@ import { normalizeParticipantOpeningHoursResponse } from "./fetchCalendarWithOpe
 export async function getParticipantOpeningHours(calendarId, options = {}) {
     try {
         const { baseUrl, consumer, ...passThrough } = options;
-        const ready = ensureBlazeoHttpReady({ baseUrl, consumer });
-        if (!ready.ok) {
-            return {
-                openingHours: [],
-                raw: null,
-                meta: { ok: false, reason: "missing_base_url", error: ready.error },
-            };
-        }
-        const cal = await CalendarModel.get(calendarId);
-        if (cal == null) {
+        const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection({ baseUrl, consumer });
+        const rawRes = await CalendarModel.getRaw(calendarId);
+        const payload = unwrapCalendarGetData(rawRes);
+        if (!payload) {
             return {
                 openingHours: [],
                 raw: null,
                 meta: { ok: false, reason: "calendar_not_found" },
             };
         }
+        const cal = CalendarModel.create({ ...payload, calendarId }, { baseUrl: resolvedBase, consumer: resolvedConsumer });
         const raw = await cal.getParticipantOpeningHours({ calendarId, ...(passThrough ?? {}) });
         const { list } = normalizeParticipantOpeningHoursResponse(raw);
         const openingHours = Array.isArray(list) ? list : [];

@@ -10,6 +10,7 @@
     "participants:info": "node ./scripts/getInfoByCalendar.mjs"
   },
   "dependencies": {
+    "@blazeo.com/appointment-client": "file:../blazeo.com-appointment-client-1.0.7.tgz",
     "appointment-client": "file:..",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

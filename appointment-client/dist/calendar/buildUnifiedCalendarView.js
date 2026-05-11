@@ -40,15 +40,21 @@ function coerceMemberId(v) {
  * Canonical member id used in both `members[].id` and `openingHours[].member`.
  */
 function resolveParticipantMemberId(calPart) {
-    const n = pick(calPart, "id", "Id");
-    if (n != null && typeof n === "number" && !Number.isNaN(n))
-        return n;
+    // Prefer the participantId GUID when available — it is the stable cross-endpoint identifier.
     const sid = pick(calPart, "participantId", "ParticipantId", "participant_id");
     if (sid != null && String(sid).trim() !== "") {
         const t = String(sid).trim();
         if (/^\d+$/.test(t))
             return Number(t);
         return t;
+    }
+    // Fall back to id — accepts both numeric and string (e.g. a GUID stored as id).
+    const n = pick(calPart, "id", "Id");
+    if (n != null) {
+        if (typeof n === "number" && !Number.isNaN(n))
+            return n;
+        if (typeof n === "string" && n.trim() !== "")
+            return n.trim();
     }
     return "";
 }
@@ -206,6 +212,7 @@ export function buildUnifiedCalendarView(calendarSnapshot, openingHoursRows, par
                 email: email ?? null,
                 status: deriveMemberStatus({}, inf),
                 participantInfo: participantInfoPlain,
+                __typename: "Member",
             });
         }
     }
@@ -227,13 +234,20 @@ export function buildUnifiedCalendarView(calendarSnapshot, openingHoursRows, par
         const endMinute = Number(pick(row, "endMinute", "EndMinute", "end_minute") ?? 0) || 0;
         const off = Boolean(pick(row, "off", "Off"));
         openingHours.push({
+            id: pick(row, "id", "Id") ?? 0,
+            createdOn: pick(row, "createdOn", "CreatedOn", "created_on") ?? "0001-01-01T00:00:00.000Z",
+            modifiedOn: pick(row, "modifiedOn", "ModifiedOn", "modified_on") ?? "0001-01-01T00:00:00.000Z",
             member: memberId,
+            openingHourId: pick(row, "openingHourId", "OpeningHourId", "opening_hour_id") ?? "",
+            calendarId: pick(row, "calendarId", "CalendarId", "calendar_id") ?? "",
+            participantId: pick(row, "participantId", "ParticipantId", "participant_id") ?? "",
             days,
             startHour,
             startMinute,
             endHour,
             endMinute,
             off,
+            __typename: "OpeningHour",
         });
     }
     mergeOpeningHoursBySlot(openingHours);
@@ -242,6 +256,7 @@ export function buildUnifiedCalendarView(calendarSnapshot, openingHoursRows, par
         members,
         openingHours,
         participants: buildNestedParticipants(members, openingHours),
+        __typename: "Calendar",
     };
     return view;
 }
@@ -249,17 +264,23 @@ export function buildUnifiedCalendarView(calendarSnapshot, openingHoursRows, par
  * Groups opening hours into their respective participant objects.
  */
 function buildNestedParticipants(members, openingHours) {
-    return members.map((m) => {
-        const hours = openingHours.filter((oh) => {
+    const nested = [];
+    members.forEach((m) => {
+        const hoursForThisMember = openingHours.filter((oh) => {
             const mid = String(oh.member).trim().toLowerCase();
             const pid = String(m.id).trim().toLowerCase();
             return mid === pid;
         });
         // Remove the 'member' field from the nested opening hours as it's redundant.
-        const nestedHours = hours.map(({ member, ...rest }) => rest);
-        return {
+        const nestedHours = hoursForThisMember.map(({ member, ...rest }) => ({
+            ...rest,
+            __typename: "OpeningHour"
+        }));
+        nested.push({
             ...m,
             openingHours: nestedHours,
-        };
+            __typename: "Member",
+        });
     });
+    return nested;
 }

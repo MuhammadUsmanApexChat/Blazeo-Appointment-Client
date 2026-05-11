@@ -194,7 +194,9 @@ export async function fetchCalendarDetails(
   // Merge participantList and infoList to ensure we have all members
   const mergedParticipantsMap = new Map<string, any>();
   
-  const getAnyId = (obj: any) => obj.id ?? obj.Id ?? obj.participantId ?? obj.ParticipantId ?? obj.participant_id;
+  // Prefer the participantId GUID; fall back to numeric id.
+  const getAnyId = (obj: any) =>
+    obj.participantId ?? obj.ParticipantId ?? obj.participant_id ?? obj.id ?? obj.Id;
 
   // 1. Add from standard list
   participantList.forEach((p: any) => {
