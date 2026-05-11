@@ -291,41 +291,18 @@ export function FetchCalendarTab() {
 
     setBusy(true);
     try {
-      const byCompany = await CalendarModel.getByCompany(key);
-      const list = byCompany?.calendars ?? byCompany;
-      if (list == null || !Array.isArray(list) || list.length === 0) {
-        setNote(
-          "getByCompany returned null or an empty list. (calendar-client ≥1.0.17 returns { calendars, totalCount }.)"
-        );
-        setOutput(toDisplayJson(byCompany));
+      // Use the new optimized method that includes members automatically
+      const enriched = await CalendarModel.getCalendarsByCompany(key, {
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
+
+      if (!enriched || enriched.length === 0) {
+        setNote("getCalendarsByCompany returned an empty list.");
+        setOutput("[]");
       } else {
-        const enriched = await Promise.all(
-          list.map(async (c) => {
-            const id = c.calendarId ?? String(c.id ?? "");
-            if (!id) return { calendar: getSnapshot(c), openingHours: [], meta: { error: "no id" } };
-            try {
-              // fetchCalendarDetails now returns the flat unified view directly
-              const b = await fetchCalendarDetails(id, {
-                ...connectionOpts,
-                baseUrl: effective.baseUrl,
-                ...(effective.consumer ? { consumer: effective.consumer } : {}),
-              });
-              // b IS the unified calendarView: members/openingHours/participants at top level
-              return b ?? { calendar: getSnapshot(c), openingHours: [], meta: { error: "null response" } };
-            } catch (err) {
-              return {
-                calendar: getSnapshot(c),
-                openingHours: [],
-                meta: {
-                  error: err instanceof Error ? err.message : String(err),
-                },
-              };
-            }
-          })
-        );
-        const total = byCompany?.totalCount ?? list.length;
         setNote(
-          `Loaded ${list.length} calendar(s) (totalCount=${total}); opening hours (embed → participant API) + participants per calendar.`
+          `Loaded ${enriched.length} calendar(s) with members using optimized getCalendarsByCompany.`
         );
         setOutput(toDisplayJson(enriched));
       }
