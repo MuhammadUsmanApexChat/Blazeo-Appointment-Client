@@ -1,5 +1,5 @@
 import { getSnapshot } from "mobx-state-tree";
-import { addParticipantToCalendar, saveCalendarOpeningHour } from "./blazeoCalendarRelationMethods.js";
+import { addParticipantToCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
 
 function isFailureStatus(res: any) {
@@ -97,8 +97,11 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
     membersAdded += 1;
   }
 
-  let openingHoursSaved = 0;
-  for (const oh of calendar.openingHours ?? []) {
+  // 2. Save Opening Hours (Plan V2: Grouped by participant with explicit off-days per slot)
+  const openingHours = calendar.openingHours ?? [];
+  const hoursByParticipant = new Map<string, any[]>();
+
+  for (const oh of openingHours) {
     const participantId = resolveParticipantIdForOpeningHour(oh);
     if (!participantId) {
       return {
@@ -106,8 +109,21 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
         error: `Opening hour id ${oh.id}: participantId is required.`,
       };
     }
-    for (const day of oh.days ?? []) {
-      const payload = {
+
+    if (!hoursByParticipant.has(participantId)) {
+      hoursByParticipant.set(participantId, []);
+    }
+
+    // Plan V2 Logic: For every opening hour object, generate EXACTLY 7 entries (days 0-6).
+    // If the day is in oh.days, it's ON. If not, it's OFF.
+    const activeDays = oh.days ?? [];
+    const openingHourId = oh.openingHourId?.trim() || newOpeningHourId();
+
+    for (let day = 0; day <= 6; day++) {
+      const isIncluded = activeDays.includes(day);
+      const isOff = isIncluded ? !!oh.off : true; // If not in days array, it's explicitly OFF
+
+      hoursByParticipant.get(participantId)?.push({
         calendarId: calendarIdStr,
         participantId,
         day,
@@ -115,23 +131,31 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
         startMinute: oh.startMinute,
         endHour: oh.endHour,
         endMinute: oh.endMinute,
-        off: oh.off,
-        openingHourId: oh.openingHourId?.trim() || newOpeningHourId(),
-      };
-      const res = await saveCalendarOpeningHour(calendarNode, payload);
-      if (isFailureStatus(res)) {
-        const msg =
-          res.message ??
-          (typeof res.data === "string" ? res.data : undefined) ??
-          JSON.stringify(res);
-        return {
-          ok: false,
-          error: `saveOpeningHour failed (opening hour ${oh.id}, day ${day}): ${msg}`,
-          apiResponse: res,
-        };
-      }
-      openingHoursSaved += 1;
+        off: isOff,
+        openingHourId: openingHourId,
+      });
     }
+  }
+
+  let openingHoursSaved = 0;
+  for (const [participantId, payload] of hoursByParticipant.entries()) {
+    if (payload.length === 0) continue;
+
+    // Use the batch save method (plural)
+    const res = await saveCalendarOpeningHoursBatch(calendarNode, payload);
+    
+    if (isFailureStatus(res)) {
+      const msg =
+        res.message ??
+        (typeof res.data === "string" ? res.data : undefined) ??
+        JSON.stringify(res);
+      return {
+        ok: false,
+        error: `saveOpeningHours batch failed for participant ${participantId}: ${msg}`,
+        apiResponse: res,
+      };
+    }
+    openingHoursSaved += payload.length;
   }
 
   return {
