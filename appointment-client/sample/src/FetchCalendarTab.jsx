@@ -460,29 +460,29 @@ export function FetchCalendarTab() {
       <div className="card">
         <h2>Fetch calendar · calendarView</h2>
         <p className="muted small">
-          Runs <code>fetchCalendarDetails(calendarId)</code>. JSON field <code>calendarView</code> is first: one object with
-          calendar snapshot fields + <code>members</code> + <code>openingHours</code>, and a **new** <code>participants</code> array
-          where each participant has their own <code>openingHours</code> nested inside.
+          Runs <code>fetchCalendarDetails(calendarId)</code>. The JSON shown below <strong>is</strong> the unified calendar view:
+          one object with calendar snapshot fields + <code>members</code> + <code>openingHours</code>, plus a{" "}
+          <code>participants</code> array where each participant may include nested <code>openingHours</code>. (
+          <code>fetchCalendarBundle(calendarId)</code> returns the same shape.)
         </p>
         <p className="muted small">
           Uses <code>fetchCalendarDetails</code>: legacy <code>openingHours</code> prefers embed on{" "}
           <code>CalendarModel.getRaw</code>, else <code>getParticipantOpeningHours</code>.{" "}
-          <code>calendarView.openingHours</code> prefers <code>getAllParticipantOpeningHours</code> (
+          Unified <code>openingHours</code> prefers <code>getAllParticipantOpeningHours</code> (
           <code>GET /Calendar/Participant/OpeningHours/All/Get</code>) when the API returns rows. Members combine{" "}
           <code>CalendarModel.getParticipants</code> + <code>CalendarModel.getParticipantsInfo</code> (each member may
           include <code>participantInfo</code>).
         </p>
         <p className="muted small">
-          <strong>Single object in code:</strong> <code>fetchCalendarBundle(calendarId)</code> after{" "}
-          <code>initializeAppointmentClient(&#123; baseUrl, consumer &#125;)</code> — same unified shape as{" "}
-          <code>calendarView</code> below. This tab runs <code>fetchCalendarDetails</code> so extra arrays stay visible.
+          <strong>In code:</strong> <code>fetchCalendarBundle(calendarId)</code> (after{" "}
+          <code>initializeAppointmentClient(&#123; baseUrl, consumer &#125;)</code>) is an alias for the same unified fetch;
+          use either alongside explicit <code>baseUrl</code> / <code>consumer</code> options when needed.
         </p>
         <p className="muted small">
           <strong>DevTools Network:</strong> Each fetch fires <code>/Calendar/Get</code> <strong>twice</strong> (
           <code>CalendarModel.get</code> + <code>getRaw</code>). Other calls use different URLs — filter by{" "}
-          <code>Participant</code>, <code>OpeningHours</code>, or <code>GetInfo</code>. Those power{" "}
-          <code>calendarView</code>. If you only see <code>Calendar/Get</code> yet the UI JSON has members/hours,
-          widen the Network filter (&quot;All&quot;) or disable search; if <code>calendarView</code> is empty/missing fields,
+          <code>Participant</code>, <code>OpeningHours</code>, or <code>GetInfo</code>. Those power the unified view. If you only see <code>Calendar/Get</code> yet the UI JSON has members/hours,
+          widen the Network filter (&quot;All&quot;) or disable search; if the unified object is empty/missing fields,
           check the <strong>Console</strong> for errors on the participant/opening-hours requests.
         </p>
         <p className="muted small">
@@ -558,11 +558,18 @@ export function FetchCalendarTab() {
       <div className="card">
         <h2>Fetch calendars by company</h2>
         <p className="muted small">
-          Calls <code>CalendarModel.getByCompany</code> → <code>GET /Calendar/All</code>. If the UI shows{" "}
-          <strong>Failed to fetch</strong> while Base URL points at Azure/production, that is usually{" "}
+          Step 1: <code>CalendarModel.getByCompany</code> → <code>GET /Calendar/All</code> (company key → calendar
+          list). Step 2: for each calendar id, this tab runs the same{" "}
+          <code>fetchCalendarDetails(calendarId)</code> pipeline as <strong>Fetch calendar · calendarView</strong>, so
+          the JSON below is an <strong>array</strong> of unified objects (members, openingHours, participants — same
+          shape as a single fetch). If an id is missing from the list row, that entry falls back to the raw snapshot
+          only.
+        </p>
+        <p className="muted small">
+          If the UI shows <strong>Failed to fetch</strong> while Base URL points at Azure/production, that is usually{" "}
           <strong>CORS</strong>: enable proxy via <code>VITE_DEV_PROXY_TARGET</code> in{" "}
-          <code>sample/.env.development</code> and Base URL <code>http://localhost:5173/blazeo-api</code>{" "}
-          (restart dev server).
+          <code>sample/.env.development</code> and Base URL <code>http://localhost:5173/blazeo-api</code> (restart dev
+          server).
         </p>
         <form onSubmit={handleFetchByCompany} className="form">
           <label className="form__label">
