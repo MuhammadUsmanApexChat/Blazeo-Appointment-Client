@@ -132,7 +132,10 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
         endHour: oh.endHour,
         endMinute: oh.endMinute,
         off: isOff,
-        openingHourId: openingHourId,
+        // Plan V2 Optimization: Generate a unique ID for EVERY day record.
+        // This prevents the backend from deduplicating/overwriting when multiple 
+        // records for the same participant + slot are sent in one batch.
+        openingHourId: newOpeningHourId(),
       });
     }
   }
@@ -140,6 +143,11 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
   let openingHoursSaved = 0;
   for (const [participantId, payload] of hoursByParticipant.entries()) {
     if (payload.length === 0) continue;
+
+    // Plan V2 Optimization: Clear existing records for this participant first.
+    // This ensures that when we save the new batch (with unique per-day IDs), 
+    // we don't leak orphaned records or create duplicates during updates.
+    await (calendarNode as any).removeParticipantOpeningHours(participantId);
 
     // Use the batch save method (plural)
     const res = await saveCalendarOpeningHoursBatch(calendarNode, payload);
