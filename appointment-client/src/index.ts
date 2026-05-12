@@ -10,8 +10,7 @@ export type { EnsureBlazeoHttpOptions } from "./config/ensureBlazeoHttpReady.js"
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
 export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel, ParticipantModel } from "./models/CalendarRootModel.js";
-export { fetchCalendarDetails, fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
-export { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
+export { fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
 export {
   buildUnifiedCalendarView,
   type UnifiedCalendarMember,
@@ -33,9 +32,9 @@ export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOp
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export { mapAppointmentToEventSnapshot } from "./events/mapAppointmentToEventSnapshot.js";
 
-import { fetchCalendarDetails, fetchCalendarBundle } from "./calendar/fetchCalendarDetails.js";
-import { fetchCalendarWithOpeningHours } from "./calendar/fetchCalendarWithOpeningHours.js";
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
+import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
+export { getCalendarsByCompany, fetchCalendarDetails };
 
 import { 
   CalendarModel as CoreCalendarModel, 
@@ -46,21 +45,20 @@ import {
   getConfig 
 } from "@blazeo.com/calendar-client";
 
-// Attach new methods to CalendarModel for easier access
-(CoreCalendarModel as any).fetchCalendarDetails = fetchCalendarDetails;
-(CoreCalendarModel as any).fetchCalendarBundle = fetchCalendarBundle;
-(CoreCalendarModel as any).fetchCalendarWithOpeningHours = fetchCalendarWithOpeningHours;
-(CoreCalendarModel as any).getCalendarsByCompany = getCalendarsByCompany;
+// Enriched CalendarModel
+export const CalendarModel = {
+  ...CoreCalendarModel,
+  getCalendarsByCompany,
+  fetchCalendarDetails
+};
 
 export { 
-  CoreCalendarModel as CalendarModel, 
   CoreEventModel as CoreEventModel, 
   CoreParticipantModel as CoreParticipantModel, 
   CoreCalendarParticipantModel as CalendarParticipantModel,
   configure, 
   getConfig 
 };
-
 
 export const packageName = "@blazeo.com/appointment-client";
 
