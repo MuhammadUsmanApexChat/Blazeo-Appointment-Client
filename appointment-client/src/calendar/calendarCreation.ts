@@ -1,5 +1,5 @@
 import { getSnapshot } from "mobx-state-tree";
-import { addParticipantToCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
+import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
 
 function isFailureStatus(res: any) {
@@ -8,7 +8,24 @@ function isFailureStatus(res: any) {
 
 function normalizeParticipantGuid(id: any) {
   if (id == null || !String(id).trim()) return undefined;
-  return String(id).trim().replace(/^\{|\}$/g, "");
+  return String(id).trim().replace(/^\{|\}$/g, "").toLowerCase();
+}
+
+/** Coerce MST / envelope shapes into a plain ID list for comparison. */
+function unwrapParticipantIds(raw: any): string[] {
+  if (raw == null) return [];
+  let list: any[] = [];
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else {
+    const d = raw.data ?? raw.Data ?? raw.items ?? raw.Items ?? raw;
+    list = Array.isArray(d) ? d : (d?.items ?? d?.Items ?? []);
+  }
+  
+  return list.map(p => {
+    const id = p.participantId ?? p.ParticipantId ?? p.participant_id ?? p.id ?? p.Id;
+    return normalizeParticipantGuid(id);
+  }).filter(Boolean) as string[];
 }
 
 function newOpeningHourId() {
@@ -73,8 +90,34 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
     };
   }
 
+  // 1. Participant Reconciliation (Diff-based)
+  // Fetch current participants to see who needs to be removed
+  let currentParticipantIds: string[] = [];
+  try {
+    const currentRaw = await calendarNode.getParticipants();
+    currentParticipantIds = unwrapParticipantIds(currentRaw);
+  } catch (err) {
+    console.warn("[calendarCreation] Failed to fetch current participants for reconciliation. Proceeding with additive mode.", err);
+  }
+
+  const desiredMembers = calendar.members ?? [];
+  const desiredIds = new Set(desiredMembers.map((m: any) => normalizeParticipantGuid(m.id)).filter(Boolean));
+
+  // A. Remove missing members
+  for (const existingId of currentParticipantIds) {
+    if (!desiredIds.has(existingId)) {
+      try {
+        await removeParticipantFromCalendar(calendarNode, existingId);
+      } catch (err) {
+        console.warn(`[calendarCreation] Failed to remove participant ${existingId}:`, err);
+      }
+    }
+  }
+
+  // B. Add new members
+  const existingIdSet = new Set(currentParticipantIds);
   let membersAdded = 0;
-  for (const m of calendar.members ?? []) {
+  for (const m of desiredMembers) {
     const pid = normalizeParticipantGuid(m.id);
     if (!pid) {
       return {
@@ -82,19 +125,23 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
         error: `Member id ${m.id}: thirdPartyMemberId is required to add a participant.`,
       };
     }
-    const res = await addParticipantToCalendar(calendarNode, pid);
-    if (isFailureStatus(res)) {
-      const msg =
-        res.message ??
-        (typeof res.data === "string" ? res.data : undefined) ??
-        JSON.stringify(res);
-      return {
-        ok: false,
-        error: `addParticipant failed for member ${m.id}: ${msg}`,
-        apiResponse: res,
-      };
+
+    // Only add if not already there
+    if (!existingIdSet.has(pid)) {
+      const res = await addParticipantToCalendar(calendarNode, pid);
+      if (isFailureStatus(res)) {
+        const msg =
+          res.message ??
+          (typeof res.data === "string" ? res.data : undefined) ??
+          JSON.stringify(res);
+        return {
+          ok: false,
+          error: `addParticipant failed for member ${m.id}: ${msg}`,
+          apiResponse: res,
+        };
+      }
+      membersAdded += 1;
     }
-    membersAdded += 1;
   }
 
   // 2. Save Opening Hours (Plan V2: Grouped by participant with explicit off-days per slot)
