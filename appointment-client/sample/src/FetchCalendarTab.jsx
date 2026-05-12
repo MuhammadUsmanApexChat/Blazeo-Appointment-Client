@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import {
+  CalendarCreation,
   CalendarModel,
   deleteCalendarAsync,
   ensureBlazeoHttpReady,
-  fetchCalendarDetails,
   updateCalendarAsync,
 } from "appointment-client";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
@@ -229,40 +229,24 @@ export function FetchCalendarTab() {
 
     setBusy(true);
     try {
-      const details = await fetchCalendarDetails(id, {
+      const result = await CalendarModel.fetchCalendarDetails(id, {
         ...connectionOpts,
         baseUrl: effective.baseUrl,
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
       });
 
-      const meta = details?._meta ?? details?.meta;
-      if (meta && !meta.ok && meta.reason === "missing_base_url") {
-        setError(mapBlazeoDemoError(meta.detail ?? ""));
-        return;
-      }
-
-      if (!details) {
-        ensureBlazeoHttpReady({
-          baseUrl: effective.baseUrl,
-          ...(effective.consumer ? { consumer: effective.consumer } : {}),
-        });
-        const raw = await CalendarModel.getRaw(id);
-        setNote("CalendarModel.get returned null. Showing CalendarModel.getRaw only.");
-        setOutput(toDisplayJson(raw));
-        return;
-      }
-
-      const snap = details._cal ? getSnapshot(details._cal) : null;
-      if (snap) {
-        setLastFetchUpdatePayload(JSON.stringify(calendarSnapshotToUpdatePayload(snap), null, 2));
-      }
-
-      // If it's the new flat response, just use it directly for output.
-      setOutput(toDisplayJson(details));
-      
-      // We can still try to extract meta for the UI if needed
-      if (meta) {
-        setNote(`Source: ${meta.calendarViewUsedAllParticipantOpeningHours ? "AllParticipantOpeningHours" : "Embedded/ParticipantApi"}`);
+      if (result) {
+        setOutput(toDisplayJson(result));
+        setNote(`CalendarModel.fetchCalendarDetails → Enriched Unified View (ID: ${id})`);
+        setUpdateJson(toDisplayJson(result));
+        
+        const snap = result._cal ? getSnapshot(result._cal) : null;
+        if (snap) {
+          setLastFetchUpdatePayload(JSON.stringify(calendarSnapshotToUpdatePayload(snap), null, 2));
+        }
+      } else {
+        setNote(`Calendar not found or error fetching details for ID: ${id}`);
+        setOutput("{}");
       }
     } catch (err) {
       setError(explainFetchFailure(err, effective.baseUrl));
@@ -360,17 +344,19 @@ export function FetchCalendarTab() {
     }
     setBusy(true);
     try {
-      const result = await updateCalendarAsync(payload, {
+      const result = await CalendarCreation.updateWithRelationsAsync(payload, {
         ...connectionOpts,
         baseUrl: effective.baseUrl,
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
       });
       if (result.ok) {
-        setMutateNote("updateCalendarAsync → POST /Calendar/Event/Update");
+        setMutateNote("updateWithRelationsAsync → POST /Calendar/Event/Update + Batch Opening Hours");
         setMutateOutput(
           JSON.stringify(
             {
-              snapshot: getSnapshot(result.calendar),
+              snapshot: result.calendar ? getSnapshot(result.calendar) : null,
+              membersAdded: result.membersAdded,
+              openingHoursSaved: result.openingHoursSaved,
               apiResponse: result.apiResponse ?? null,
             },
             null,
