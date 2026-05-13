@@ -13,7 +13,7 @@ function formatYmd(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function normalizeParticipantId(id: string) {
+function normalizeGuid(id: string) {
   return id.trim().replace(/^\{|\}$/g, "");
 }
 
@@ -29,16 +29,13 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
       ? (input.description ?? null)
       : (input.description ?? input.notes ?? null);
 
-  const eventIdRaw = input.thirdPartyAppointmentId?.trim();
-  const eventId = eventIdRaw && eventIdRaw !== "new" ? eventIdRaw : "new";
   const email = input.email ?? input.visitorEmail ?? null;
   const phone = input.phone ?? input.visitorPhone ?? null;
   const visitorName = input.visitorName?.trim() || null;
 
   const snap: any = {
-    eventId,
-    calendarId: input.thirdPartyCalendarId?.trim() ?? "",
-    participantId: normalizeParticipantId(input.participantId),
+    calendarId: normalizeGuid(input.calendarId ?? ""),
+    participantId: normalizeGuid(input.participantId),
     title: input.title ?? null,
     description,
     startDate: formatYmd(start),
@@ -59,6 +56,11 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
     const now = new Date().toISOString();
     snap.createdOn = now;
     snap.modifiedOn = now;
+  }
+
+  if (mode === "reschedule") {
+    const eventIdRaw = input.eventId?.trim();
+    snap.eventId = eventIdRaw || undefined;
   }
 
   return snap;

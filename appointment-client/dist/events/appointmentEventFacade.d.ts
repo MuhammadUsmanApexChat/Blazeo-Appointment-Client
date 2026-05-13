@@ -14,6 +14,11 @@ export declare function createAppointmentEventAsync(input: any, options?: any): 
     apiResponse?: undefined;
 } | {
     ok: boolean;
+    apiResponse: any;
+    error?: undefined;
+    event?: undefined;
+} | {
+    ok: boolean;
     error: any;
     apiResponse: any;
     event?: undefined;
@@ -37,6 +42,11 @@ export declare function rescheduleAppointmentEventAsync(input: any, options?: an
     event: any;
     error?: undefined;
     apiResponse?: undefined;
+} | {
+    ok: boolean;
+    apiResponse: any;
+    error?: undefined;
+    event?: undefined;
 } | {
     ok: boolean;
     error: any;

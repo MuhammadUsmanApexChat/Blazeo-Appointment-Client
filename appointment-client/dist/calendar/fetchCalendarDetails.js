@@ -224,9 +224,12 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         allParticipantOpeningHours.length > 0;
     if (!calendarView)
         return null;
+    // Use the mapper to normalize the final output, ensuring all fields like duration, 
+    // bookingPageTitle, calendarId, etc. are correctly picked and named.
+    const finalView = mapToDesiredCalendarResponse(payload, calendarView.openingHours, calendarView.members);
     // Attach metadata as non-enumerable properties so they don't show up in JSON.stringify
     // but are still accessible for debugging if needed.
-    Object.defineProperties(calendarView, {
+    Object.defineProperties(finalView, {
         _cal: { value: cal, enumerable: false },
         _participants: { value: participantList, enumerable: false },
         _openingHours: { value: openingHours, enumerable: false },
@@ -241,7 +244,7 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
             enumerable: false
         },
     });
-    return calendarView;
+    return finalView;
 }
 /**
  * Single return value only: unified calendar **`calendarView`** —

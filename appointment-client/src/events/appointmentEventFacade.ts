@@ -31,12 +31,37 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
   }
 
   const snapshot = mapAppointmentToEventSnapshot(input, mode);
-  const eventIdForApi = snapshot.eventId;
+  const offset = options.offsetMinutes;
 
-  if (mode === "reschedule" && (!eventIdForApi || eventIdForApi === "new")) {
+  if (mode === "create") {
+    if (options.localOnly) {
+      const env = buildModelEnv(baseUrl, consumer, true);
+      const eventNode: any = EventModel.create({ ...snapshot, eventId: "new" }, env);
+      return { ok: true, event: eventNode };
+    }
+
+    const apiRes: any = await (EventModel as any).createEvent(snapshot, offset);
+
+    if (apiRes?.eventId) {
+      return { ok: true, apiResponse: apiRes };
+    }
+
+    if (isFailureStatus(apiRes)) {
+      const msg =
+        apiRes.message ??
+        (typeof apiRes.data === "string" ? apiRes.data : undefined) ??
+        JSON.stringify(apiRes);
+      return { ok: false, error: msg || "Event create failed", apiResponse: apiRes };
+    }
+
+    return { ok: true, apiResponse: apiRes };
+  }
+
+  const eventIdForApi = snapshot.eventId;
+  if (!eventIdForApi || eventIdForApi === "new") {
     return {
       ok: false,
-      error: "thirdPartyAppointmentId is required for reschedule (existing Blazeo event id).",
+      error: "eventId is required for reschedule (existing Blazeo event id).",
     };
   }
 
@@ -47,28 +72,20 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
       error: "Model env requires baseUrl. Set `blazeoClientConfig` or pass `baseUrl` in options.",
     };
   }
-
   const eventNode: any = EventModel.create(snapshot, env);
 
   if (options.localOnly) {
     return { ok: true, event: eventNode };
   }
 
-  const offset = options.offsetMinutes;
-  const apiRes: any =
-    mode === "create" ? await eventNode.create(offset) : await eventNode.reschedule(offset);
+  const apiRes: any = await eventNode.reschedule(offset);
 
   if (isFailureStatus(apiRes)) {
     const msg =
       apiRes.message ??
       (typeof apiRes.data === "string" ? apiRes.data : undefined) ??
       JSON.stringify(apiRes);
-    return {
-      ok: false,
-      error:
-        mode === "create" ? msg || "Event create failed" : msg || "Event reschedule failed",
-      apiResponse: apiRes,
-    };
+    return { ok: false, error: msg || "Event reschedule failed", apiResponse: apiRes };
   }
 
   return { ok: true, event: eventNode, apiResponse: apiRes };

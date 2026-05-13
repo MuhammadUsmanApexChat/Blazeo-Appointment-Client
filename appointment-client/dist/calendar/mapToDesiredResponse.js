@@ -22,22 +22,32 @@ export function mapToDesiredCalendarResponse(payload, openingHours = [], members
         __typename: "Member"
     }));
     // Map opening hours with typename and raw fields
-    const mappedOpeningHours = openingHours.map(oh => ({
-        id: pick(oh, "id", "Id") ?? 0,
-        createdOn: pick(oh, "createdOn", "CreatedOn", "created_on") ?? "0001-01-01T00:00:00.000Z",
-        modifiedOn: pick(oh, "modifiedOn", "ModifiedOn", "modified_on") ?? "0001-01-01T00:00:00.000Z",
-        member: pick(oh, "member", "Member"),
-        openingHourId: pick(oh, "openingHourId", "OpeningHourId", "opening_hour_id") ?? "",
-        calendarId: pick(oh, "calendarId", "CalendarId", "calendar_id") ?? "",
-        participantId: pick(oh, "participantId", "ParticipantId", "participant_id") ?? "",
-        days: oh.days ?? [],
-        startHour: oh.startHour ?? pick(oh, "startHour", "StartHour") ?? 0,
-        startMinute: oh.startMinute ?? pick(oh, "startMinute", "StartMinute") ?? 0,
-        endHour: oh.endHour ?? pick(oh, "endHour", "EndHour") ?? 0,
-        endMinute: oh.endMinute ?? pick(oh, "endMinute", "EndMinute") ?? 0,
-        off: !!(oh.off ?? pick(oh, "off", "Off")),
-        __typename: "OpeningHour"
-    }));
+    const mappedOpeningHours = openingHours.map(oh => {
+        // If it's already a unified object (has day/start/end), preserve it but ensure __typename
+        if (oh.day !== undefined && oh.start !== undefined && oh.end !== undefined) {
+            return {
+                ...oh,
+                __typename: "OpeningHour"
+            };
+        }
+        // Otherwise, map from raw PascalCase or camelCase
+        return {
+            id: pick(oh, "id", "Id") ?? 0,
+            createdOn: pick(oh, "createdOn", "CreatedOn", "created_on") ?? "0001-01-01T00:00:00.000Z",
+            modifiedOn: pick(oh, "modifiedOn", "ModifiedOn", "modified_on") ?? "0001-01-01T00:00:00.000Z",
+            member: pick(oh, "member", "Member"),
+            openingHourId: pick(oh, "openingHourId", "OpeningHourId", "opening_hour_id") ?? "",
+            calendarId: pick(oh, "calendarId", "CalendarId", "calendar_id") ?? "",
+            participantId: pick(oh, "participantId", "ParticipantId", "participant_id") ?? "",
+            days: oh.days ?? [],
+            startHour: oh.startHour ?? pick(oh, "startHour", "StartHour") ?? 0,
+            startMinute: oh.startMinute ?? pick(oh, "startMinute", "StartMinute") ?? 0,
+            endHour: oh.endHour ?? pick(oh, "endHour", "EndHour") ?? 0,
+            endMinute: oh.endMinute ?? pick(oh, "endMinute", "EndMinute") ?? 0,
+            off: !!(oh.off ?? pick(oh, "off", "Off")),
+            __typename: "OpeningHour"
+        };
+    });
     // Map theme
     const rawTheme = pick(payload, "theme", "Theme");
     const theme = rawTheme ? {
@@ -63,6 +73,7 @@ export function mapToDesiredCalendarResponse(payload, openingHours = [], members
         })),
         __typename: "ReminderChannelStatus"
     })) : [];
+    const uuid = pick(payload, "uuid", "Uuid", "calendarId", "CalendarId");
     return {
         id: n(pick(payload, "id", "Id")),
         durationUnit: n(pick(payload, "durationUnit", "DurationUnit")),
@@ -75,7 +86,8 @@ export function mapToDesiredCalendarResponse(payload, openingHours = [], members
         bufferTime: n(pick(payload, "bufferTime", "BufferTime")),
         bufferTimeUnit: n(pick(payload, "bufferTimeUnit", "BufferTimeUnit")),
         calendarLink: pick(payload, "calendarLink", "CalendarLink"),
-        uuid: pick(payload, "uuid", "Uuid", "calendarId", "CalendarId"),
+        uuid: uuid,
+        calendarId: uuid, // Explicit alias requested by user
         location: pick(payload, "location", "Location") ?? "",
         bookingPageTitle: pick(payload, "bookingPageTitle", "BookingPageTitle") ?? null,
         reminderChannelStatuses,

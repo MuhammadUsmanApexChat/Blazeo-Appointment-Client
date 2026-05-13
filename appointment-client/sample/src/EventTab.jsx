@@ -20,8 +20,8 @@ function getExampleCreatePayload() {
   const end = new Date(start);
   end.setHours(10, 30, 0, 0);
   return {
-    thirdPartyCalendarId: "your-calendar-id",
-    participantId: "00000000-0000-0000-0000-000000000000",
+    calendarId:  "690bc3d7-e28e-44f0-8f54-ec7a04ea164c",
+    participantId: "9f5a5ec0-402e-42e0-a9d9-9973750fcaa8",
     title: "Sample appointment",
     description: "Created via appointment-client sample",
     startDate: start.toISOString(),
@@ -41,8 +41,8 @@ function getExampleReschedulePayload() {
   const end = new Date(start);
   end.setHours(14, 45, 0, 0);
   return {
-    thirdPartyAppointmentId: "existing-blazeo-event-id",
-    thirdPartyCalendarId: "your-calendar-id",
+    eventId: "existing-blazeo-event-id",
+    calendarId: "00000000-0000-0000-0000-000000000000",
     participantId: "00000000-0000-0000-0000-000000000000",
     title: "Rescheduled title",
     notes: "Reschedule body",
@@ -150,6 +150,7 @@ export function EventTab() {
     }
     setBusy(true);
     try {
+      debugger;
       const result = await createAppointmentEventAsync(payload, eventOpts);
       setOutput(resultToJson(result));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));

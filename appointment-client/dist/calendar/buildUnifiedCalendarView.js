@@ -63,18 +63,33 @@ function dayOrderIndex(d) {
     const i = DAY_NAMES.indexOf(u);
     return i >= 0 ? i : 999;
 }
-/** Merge rows that share participant + time span + off into one row with combined `days`. */
+/** Merge rows that share participant + time span into one row with combined active `days`. */
 function mergeOpeningHoursBySlot(rows) {
     const map = new Map();
     for (const r of rows) {
-        const key = [r.member, r.startHour, r.startMinute, r.endHour, r.endMinute, r.off].join("|");
+        // Key excludes 'off' because we want to merge ON and OFF records for the same time slot
+        const key = [r.member, r.startHour, r.startMinute, r.endHour, r.endMinute].join("|");
         const existing = map.get(key);
+        // We only want to add the day to the 'days' array if it is NOT marked as OFF.
+        // If the whole record was marked as OFF, we still process it to establish the slot,
+        // but its days won't be listed as 'active'.
+        const activeDaysFromThisRow = r.off ? [] : r.days;
         if (!existing) {
-            map.set(key, { ...r, days: [...r.days] });
+            map.set(key, { ...r, days: [...activeDaysFromThisRow], off: false });
         }
         else {
-            const set = new Set([...existing.days, ...r.days]);
+            const set = new Set([...existing.days, ...activeDaysFromThisRow]);
             existing.days = Array.from(set).sort((a, b) => dayOrderIndex(a) - dayOrderIndex(b));
+            // If we encounter any record that is NOT off, the whole merged slot is NOT off.
+            if (!r.off)
+                existing.off = false;
+        }
+    }
+    // Final Pass: If a slot has NO active days, it should be marked as off: true 
+    // (though in Plan V2, these usually just disappear from the UI's 'days' list)
+    for (const group of map.values()) {
+        if (group.days.length === 0) {
+            group.off = true;
         }
     }
     rows.length = 0;

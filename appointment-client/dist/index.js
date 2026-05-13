@@ -4,8 +4,8 @@ export { syncBlazeoConnection } from "./config/syncBlazeoConnection.js";
 export { ensureBlazeoHttpReady } from "./config/ensureBlazeoHttpReady.js";
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
-export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel, ParticipantModel } from "./models/CalendarRootModel.js";
-export { fetchCalendarDetails, fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
+export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel as MSTEventModel, ParticipantModel as MSTParticipantModel } from "./models/CalendarRootModel.js";
+export { fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
 export { buildUnifiedCalendarView, } from "./calendar/buildUnifiedCalendarView.js";
 export { fetchCalendarWithOpeningHours, unwrapCalendarGetData, pickOpeningHoursArrayFromCalendarPayload, normalizeParticipantOpeningHoursResponse } from "./calendar/fetchCalendarWithOpeningHours.js";
 export { getOpeningHours } from "./calendar/getOpeningHours.js";
@@ -19,7 +19,18 @@ export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithR
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export { mapAppointmentToEventSnapshot } from "./events/mapAppointmentToEventSnapshot.js";
-export { CalendarModel, EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel, configure, getConfig } from "@blazeo.com/calendar-client";
+import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
+import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
+import { getAppointmentsByFilter } from "./events/getAppointmentsByFilter.js";
+export { getCalendarsByCompany, fetchCalendarDetails, getAppointmentsByFilter };
+import { CalendarModel as CoreCalendarModel, EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel as CoreCalendarParticipantModel, LeadModel as CoreLeadModel, configure, getConfig } from "@blazeo.com/calendar-client";
+// Enriched CalendarModel
+export const CalendarModel = {
+    ...CoreCalendarModel,
+    getCalendarsByCompany,
+    fetchCalendarDetails
+};
+export { CoreEventModel as EventModel, CoreParticipantModel as ParticipantModel, CoreCalendarParticipantModel as CalendarParticipantModel, CoreLeadModel as LeadModel, CoreEventModel, CoreParticipantModel, configure, getConfig };
 export const packageName = "@blazeo.com/appointment-client";
 export class CalendarClient {
     name = "CalendarClient";

@@ -15,6 +15,7 @@ export declare function mapToDesiredCalendarResponse(payload: any, openingHours?
     bufferTimeUnit: number | null;
     calendarLink: any;
     uuid: any;
+    calendarId: any;
     location: any;
     bookingPageTitle: any;
     reminderChannelStatuses: {
@@ -49,22 +50,7 @@ export declare function mapToDesiredCalendarResponse(payload: any, openingHours?
         logoUrl: any;
         __typename: string;
     } | null;
-    openingHours: {
-        id: any;
-        createdOn: any;
-        modifiedOn: any;
-        member: any;
-        openingHourId: any;
-        calendarId: any;
-        participantId: any;
-        days: any;
-        startHour: any;
-        startMinute: any;
-        endHour: any;
-        endMinute: any;
-        off: boolean;
-        __typename: string;
-    }[];
+    openingHours: any[];
     appointmentUserDefinedFields: any;
     __typename: string;
 } | null;
