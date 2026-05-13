@@ -9,7 +9,13 @@ export { ensureBlazeoHttpReady } from "./config/ensureBlazeoHttpReady.js";
 export type { EnsureBlazeoHttpOptions } from "./config/ensureBlazeoHttpReady.js";
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
-export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel, ParticipantModel } from "./models/CalendarRootModel.js";
+export { 
+  createCalendarRoot, 
+  CalendarRootModel, 
+  CalendarSlotModel, 
+  EventModel as MSTEventModel, 
+  ParticipantModel as MSTParticipantModel 
+} from "./models/CalendarRootModel.js";
 export { fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
 export {
   buildUnifiedCalendarView,
@@ -34,13 +40,15 @@ export { mapAppointmentToEventSnapshot } from "./events/mapAppointmentToEventSna
 
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
 import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
-export { getCalendarsByCompany, fetchCalendarDetails };
+import { getAppointmentsByFilter } from "./events/getAppointmentsByFilter.js";
+export { getCalendarsByCompany, fetchCalendarDetails, getAppointmentsByFilter };
 
 import { 
   CalendarModel as CoreCalendarModel, 
   EventModel as CoreEventModel, 
   ParticipantModel as CoreParticipantModel, 
   CalendarParticipantModel as CoreCalendarParticipantModel,
+  LeadModel as CoreLeadModel,
   configure, 
   getConfig 
 } from "@blazeo.com/calendar-client";
@@ -53,9 +61,12 @@ export const CalendarModel = {
 };
 
 export { 
-  CoreEventModel as CoreEventModel, 
-  CoreParticipantModel as CoreParticipantModel, 
+  CoreEventModel as EventModel, 
+  CoreParticipantModel as ParticipantModel, 
   CoreCalendarParticipantModel as CalendarParticipantModel,
+  CoreLeadModel as LeadModel,
+  CoreEventModel,
+  CoreParticipantModel,
   configure, 
   getConfig 
 };

@@ -4,6 +4,7 @@ import {
   createAppointmentEventAsync,
   ensureBlazeoHttpReady,
   EventModel,
+  getAppointmentsByFilter,
   rescheduleAppointmentEventAsync,
 } from "appointment-client";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
@@ -243,6 +244,40 @@ export function EventTab() {
       );
       const totalCount = res?.totalCount ?? events.length;
       setOutput(JSON.stringify({ totalCount, events }, null, 2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleEnrichedSearch(e) {
+    e.preventDefault();
+    setError("");
+    setOutput("");
+    const companyKey = searchCompanyKey.trim();
+    if (!companyKey) return setError("Enter company key.");
+    if (!searchFrom) return setError("Pick start date.");
+    if (!searchTo) return setError("Pick end date.");
+    if (!ensureBase()) return;
+    configureBlazeoFromEffective(effective);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
+
+    const optsFromJson = safeJsonParse(searchFiltersJson, {});
+    const startDateFrom = new Date(`${searchFrom}T00:00:00.000Z`).toISOString();
+    const startDateTo = new Date(`${searchTo}T23:59:59.999Z`).toISOString();
+
+    setBusy(true);
+    try {
+      const res = await getAppointmentsByFilter(
+        companyKey,
+        startDateFrom,
+        startDateTo,
+        optsFromJson
+      );
+
+      setOutput(JSON.stringify(res, null, 2));
     } catch (err) {
       setError(mapBlazeoDemoError(err instanceof Error ? err.message : String(err)));
     } finally {
@@ -316,9 +351,14 @@ export function EventTab() {
               rows={10}
             />
           </label>
-          <button type="submit" className="btn btn--secondary" disabled={busy}>
-            {busy ? "Loading…" : "Search"}
-          </button>
+          <div className="connection-card__row">
+            <button type="button" className="btn btn--secondary" onClick={handleSearchByDateRange} disabled={busy}>
+              {busy ? "Loading…" : "Raw Search"}
+            </button>
+            <button type="button" className="btn btn--primary" onClick={handleEnrichedSearch} disabled={busy}>
+              {busy ? "Loading…" : "Enriched Search (New)"}
+            </button>
+          </div>
         </form>
       </div>
 
