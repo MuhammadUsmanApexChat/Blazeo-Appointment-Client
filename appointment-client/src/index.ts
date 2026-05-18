@@ -37,6 +37,34 @@ export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithR
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export { mapAppointmentToEventSnapshot } from "./events/mapAppointmentToEventSnapshot.js";
+export { setPreferenceAsync, type BlazeoPreferenceConnection } from "./preference/setPreference.js";
+export {
+  collectAppointmentReminders,
+  mapSmsRemindersToPreferencePayload,
+  mapReminderRecipients,
+  SMS_CHANNEL_TYPE,
+  SMS_EVENT_REMINDER_OPTION,
+  type AppointmentReminderInput,
+  type SmsEventReminderPreferenceRow,
+} from "./preference/mapSmsEventReminderPreference.js";
+export { saveCalendarSmsRemindersPreference } from "./preference/saveCalendarSmsReminders.js";
+export {
+  mapCalendarThemeToPreferencePayload,
+  calendarPayloadHasTheme,
+  CALENDAR_THEME_OPTION,
+  type CalendarThemePreferenceRow,
+} from "./preference/mapCalendarThemePreference.js";
+export { saveCalendarThemePreference } from "./preference/saveCalendarThemePreference.js";
+export { saveCalendarPreferencesAfterSave } from "./preference/saveCalendarPreferences.js";
+export { fetchCalendarPreferences, type FetchCalendarPreferencesOptions } from "./preference/fetchCalendarPreferences.js";
+export {
+  parsePreferenceOptionRows,
+  mapSmsPreferenceToAppointmentReminders,
+  mapPreferenceRecipientsToRecipientType,
+  buildCalendarPreferencesBundle,
+  type CalendarPreferencesBundle,
+} from "./preference/mapPreferenceFromApi.js";
+export { mergePreferencesIntoCalendarView } from "./preference/mergePreferencesIntoCalendarView.js";
 
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
 import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
@@ -49,6 +77,8 @@ import {
   ParticipantModel as CoreParticipantModel, 
   CalendarParticipantModel as CoreCalendarParticipantModel,
   LeadModel as CoreLeadModel,
+  PreferenceModel as CorePreferenceModel,
+  PreferenceScope,
   configure, 
   getConfig 
 } from "@blazeo.com/calendar-client";
@@ -65,6 +95,8 @@ export {
   CoreParticipantModel as ParticipantModel, 
   CoreCalendarParticipantModel as CalendarParticipantModel,
   CoreLeadModel as LeadModel,
+  CorePreferenceModel as PreferenceModel,
+  PreferenceScope,
   CoreEventModel,
   CoreParticipantModel,
   configure, 

@@ -1,8 +1,26 @@
 import { useMemo, useState } from "react";
-import { createCalendarAsync, createCalendarWithRelationsAsync, ensureBlazeoHttpReady } from "appointment-client";
+import {
+  collectAppointmentReminders,
+  createCalendarAsync,
+  createCalendarWithRelationsAsync,
+  ensureBlazeoHttpReady,
+  mapCalendarThemeToPreferencePayload,
+  mapSmsRemindersToPreferencePayload,
+} from "appointment-client";
 import { getSnapshot } from "mobx-state-tree";
 import { configureBlazeoFromEffective, useBlazeoConnection } from "./BlazeoConnectionSettings.jsx";
 import { mapBlazeoDemoError } from "./blazeoDemoError.js";
+
+/** Frontend-style appointment reminders (channelType 1 = SMS → `SMSEventReminder` preference). */
+export function getExampleAppointmentReminders() {
+  return [
+    { channelType: 3, recipientType: 2, beforeEventTime: 45, unit: 1 },
+    { channelType: 1, recipientType: 1, beforeEventTime: 15, unit: 1 },
+    { channelType: 2, recipientType: 1, beforeEventTime: 10, unit: 1 },
+    { channelType: 2, recipientType: 2, beforeEventTime: 20, unit: 1 },
+    { channelType: 2, recipientType: 3, beforeEventTime: 30, unit: 1 },
+  ];
+}
 
 /** Demo payload aligned with `CalendarBOInput` / server `CalendarBO`. */
 export function getExampleCalendarBOInput() {
@@ -19,9 +37,13 @@ export function getExampleCalendarBOInput() {
     minimumCancelationNoticeUnit: 2,
     futureLimit: 1,
     futureLimitUnit: 6,
+    logoUrl:
+      "https://apexchatcrmflows.blob.core.windows.net/theme/coverphoto_38793614-4b43-4422-b174-b0d9d8bbd3c2_v_1_1778869684.jpg",
+    color: "#ff0000",
     bufferTime: 10,
     bufferTimeUnit: 1,
     bookingLimit: -1,
+    appointmentReminders: getExampleAppointmentReminders(),
     members: [{ id: "00000000-0000-0000-0000-000000000000" }],
     openingHours: [
       {
@@ -50,11 +72,49 @@ export function CreateCalendarTab() {
     JSON.stringify(getExampleCalendarBOInput(), null, 2)
   );
 
+  const parsedPayload = useMemo(() => {
+    try {
+      return JSON.parse(jsonText);
+    } catch {
+      return null;
+    }
+  }, [jsonText]);
+
+  const smsPreferencePreview = useMemo(() => {
+    if (!parsedPayload) return null;
+    try {
+      return mapSmsRemindersToPreferencePayload(collectAppointmentReminders(parsedPayload));
+    } catch {
+      return null;
+    }
+  }, [parsedPayload]);
+
+  const themePreferencePreview = useMemo(() => {
+    if (!parsedPayload) return null;
+    try {
+      return mapCalendarThemeToPreferencePayload(parsedPayload);
+    } catch {
+      return null;
+    }
+  }, [parsedPayload]);
+
   const hint = useMemo(() => {
     if (localOnly) return "Local only: no HTTP.";
     if (!effective.baseUrl) return "Set Base URL above first.";
-    return saveRelations ? "Will save calendar + participants + opening hours." : "Will save calendar body only.";
-  }, [localOnly, effective.baseUrl, saveRelations]);
+    const hasSms = (smsPreferencePreview?.length ?? 0) > 0;
+    const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
+    const relations = saveRelations
+      ? "calendar + participants + opening hours"
+      : "calendar body only";
+    const prefs = [];
+    if (hasSms) prefs.push("SMSEventReminder");
+    if (hasTheme) prefs.push("CalendarTheme");
+    const pref =
+      prefs.length > 0
+        ? ` · then POST /preference/Calendar/{calendarId}/(${prefs.join(", ")})`
+        : "";
+    return `Will save ${relations}${pref}.`;
+  }, [localOnly, effective.baseUrl, saveRelations, smsPreferencePreview, themePreferencePreview]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -80,24 +140,38 @@ export function CreateCalendarTab() {
     }
 
     const hasRelations = (payload.members?.length ?? 0) > 0 || (payload.openingHours?.length ?? 0) > 0;
-    const useRelations = saveRelations && hasRelations && !localOnly;
+    const hasSmsReminders =
+      mapSmsRemindersToPreferencePayload(collectAppointmentReminders(payload)).length > 0;
+    const hasTheme = mapCalendarThemeToPreferencePayload(payload).length > 0;
+    const useRelations =
+      !localOnly && (saveRelations && hasRelations || hasSmsReminders || hasTheme);
 
     setBusy(true);
     try {
+      const opts = {
+        localOnly,
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      };
       const result = useRelations
-        ? await createCalendarWithRelationsAsync(payload, {
-            localOnly,
-            ...connectionOpts,
-            baseUrl: effective.baseUrl,
-            ...(effective.consumer ? { consumer: effective.consumer } : {}),
-          })
-        : await createCalendarAsync(payload, {
-            localOnly,
-            ...connectionOpts,
-            baseUrl: effective.baseUrl,
-            ...(effective.consumer ? { consumer: effective.consumer } : {}),
-          });
-      setOutput(JSON.stringify(result.ok ? getSnapshot(result.calendar) : result, null, 2));
+        ? await createCalendarWithRelationsAsync(payload, opts)
+        : await createCalendarAsync(payload, opts);
+
+      const display = result.ok
+        ? {
+            ok: true,
+            smsRemindersPreferenceSaved: result.smsRemindersPreferenceSaved,
+            smsRemindersPreference: result.smsRemindersPreference,
+            calendarThemePreferenceSaved: result.calendarThemePreferenceSaved,
+            calendarThemePreference: result.calendarThemePreference,
+            membersAdded: result.membersAdded,
+            openingHoursSaved: result.openingHoursSaved,
+            calendar: getSnapshot(result.calendar),
+            apiResponse: result.apiResponse,
+          }
+        : result;
+      setOutput(JSON.stringify(display, null, 2));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));
     } finally {
       setBusy(false);
@@ -126,6 +200,28 @@ export function CreateCalendarTab() {
           </span>
         </label>
       </div>
+
+      {smsPreferencePreview?.length ? (
+        <div className="card">
+          <h2>SMS preference preview</h2>
+          <p className="muted small">
+            Only <code>channelType: 1</code> rows →{" "}
+            <code>POST /preference/Calendar/&#123;calendarId&#125;/SMSEventReminder</code>
+          </p>
+          <pre className="pre-block">{JSON.stringify(smsPreferencePreview, null, 2)}</pre>
+        </div>
+      ) : null}
+
+      {themePreferencePreview?.length ? (
+        <div className="card">
+          <h2>Theme preference preview</h2>
+          <p className="muted small">
+            <code>logoUrl</code> / <code>color</code> on calendar →{" "}
+            <code>POST /preference/Calendar/&#123;calendarId&#125;/CalendarTheme</code>
+          </p>
+          <pre className="pre-block">{JSON.stringify(themePreferencePreview, null, 2)}</pre>
+        </div>
+      ) : null}
 
       <div className="card">
         <h2>Payload</h2>

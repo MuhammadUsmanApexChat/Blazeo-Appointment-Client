@@ -424,7 +424,8 @@ export function FetchCalendarTab() {
         <h2>Fetch calendar · calendarView</h2>
         <p className="muted small">
           Runs <code>fetchCalendarDetails(calendarId)</code>. The JSON shown below <strong>is</strong> the unified calendar view:
-          one object with calendar snapshot fields + <code>members</code> + <code>openingHours</code>, plus a{" "}
+          one object with calendar snapshot fields + <code>members</code> + <code>openingHours</code> +{" "}
+          <code>preferences</code> (<code>SMSEventReminder</code>, <code>CalendarTheme</code>), plus a{" "}
           <code>participants</code> array where each participant may include nested <code>openingHours</code>. (
           <code>fetchCalendarBundle(calendarId)</code> returns the same shape.)
         </p>

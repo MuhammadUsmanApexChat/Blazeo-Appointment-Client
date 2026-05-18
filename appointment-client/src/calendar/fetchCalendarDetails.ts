@@ -7,6 +7,8 @@ import {
   normalizeParticipantOpeningHoursResponse,
 } from "./fetchCalendarWithOpeningHours.js";
 import { buildUnifiedCalendarView, type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
+import { fetchCalendarPreferences } from "../preference/fetchCalendarPreferences.js";
+import { mergePreferencesIntoCalendarView } from "../preference/mergePreferencesIntoCalendarView.js";
 import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
 
 /**
@@ -84,6 +86,9 @@ function unwrapModelList(raw: any): any[] {
  *    - `GET /Calendar/Participant/OpeningHours/All/Get` when options enable it (`preferAllParticipantOpeningHours`)
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
+ * 4. **Preferences** (when `includePreferences`, default with unified view) — parallel
+ *    `GET /preference/SMSEventReminder` + `GET /preference/CalendarTheme` keyed by `calendarId`;
+ *    merged as **`preferences`**, plus **`appointmentReminders`** / **`logoUrl`** / **`color`** when not already on the calendar payload.
  *
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
  */
@@ -94,6 +99,8 @@ export async function fetchCalendarDetails(
     includeUnifiedCalendarView?: boolean;
     /** Prefer all-participant opening hours for **`calendarView`** when the API returns rows (default `true`). */
     preferAllParticipantOpeningHours?: boolean;
+    /** Load `SMSEventReminder` + `CalendarTheme` into the view (default: same as `includeUnifiedCalendarView`). */
+    includePreferences?: boolean;
     /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
     baseUrl?: string;
     consumer?: string;
@@ -103,9 +110,11 @@ export async function fetchCalendarDetails(
     includeParticipantsInfo = false,
     includeUnifiedCalendarView = true,
     preferAllParticipantOpeningHours = true,
+    includePreferences: includePreferencesOpt,
     baseUrl: optBaseUrl,
     consumer: optConsumer,
   } = options;
+  const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
 
   const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
   if (!conn.ok) {
@@ -278,11 +287,21 @@ export async function fetchCalendarDetails(
 
   // Use the mapper to normalize the final output, ensuring all fields like duration, 
   // bookingPageTitle, calendarId, etc. are correctly picked and named.
-  const finalView = mapToDesiredCalendarResponse(
+  let finalView = mapToDesiredCalendarResponse(
     payload,
     calendarView.openingHours,
     calendarView.members
   ) as any;
+
+  if (includePreferences) {
+    const prefs = await fetchCalendarPreferences(calendarId, {
+      baseUrl: conn.baseUrl,
+      consumer: conn.consumer,
+    });
+    if (prefs) {
+      finalView = mergePreferencesIntoCalendarView(finalView, prefs);
+    }
+  }
 
   // Attach metadata as non-enumerable properties so they don't show up in JSON.stringify
   // but are still accessible for debugging if needed.
@@ -297,6 +316,9 @@ export async function fetchCalendarDetails(
         calendarViewUsedAllParticipantOpeningHours: unifiedUsedAllEndpoint,
         calendarViewMemberCount: calendarView.members.length,
         calendarViewOpeningHourCount: calendarView.openingHours.length,
+        preferencesIncluded: includePreferences,
+        preferenceSmsOptionCount: finalView?.preferences?.smsEventReminder?.options?.length ?? 0,
+        preferenceThemeLoaded: (finalView?.preferences?.calendarTheme?.options?.length ?? 0) > 0,
       }, 
       enumerable: false 
     },

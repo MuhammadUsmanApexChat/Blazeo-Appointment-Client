@@ -1,4 +1,5 @@
 import { getSnapshot } from "mobx-state-tree";
+import { saveCalendarPreferencesAfterSave } from "../preference/saveCalendarPreferences.js";
 import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
 
@@ -51,6 +52,18 @@ function effectiveCalendarId(calendarNode: any, input: any) {
   return (input.calendarId?.trim() || undefined);
 }
 
+async function savePreferencesAfterCalendarSave(
+  calendar: any,
+  calendarIdStr: string,
+  options: any,
+  baseSuccess: any
+) {
+  if (options.localOnly) {
+    return baseSuccess;
+  }
+  return saveCalendarPreferencesAfterSave(calendar, calendarIdStr, options, baseSuccess);
+}
+
 /**
  * Orchestrates the same steps as Apex `CalendarCreation.CreateCalendarAsync`:
  * save calendar (`POST /Calendar/Create`), then add participants, then save opening hours
@@ -63,7 +76,17 @@ export async function createCalendarWithRelationsAsync(calendar: any, options: a
   if (!hasMembers && !hasHours) {
     const r = await createCalendarAsync(calendar, options);
     if (!r.ok) return r;
-    return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+    const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
+    if (!calendarIdStr) {
+      return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+    }
+    const withPrefs = await savePreferencesAfterCalendarSave(
+      calendar,
+      calendarIdStr,
+      options,
+      { ...r, membersAdded: 0, openingHoursSaved: 0 }
+    );
+    return withPrefs;
   }
 
   if (options.localOnly) {
@@ -75,13 +98,18 @@ export async function createCalendarWithRelationsAsync(calendar: any, options: a
   const created = await createCalendarAsync(calendar, options);
   if (!created.ok) return created;
 
-  return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created);
+  return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created, options);
 }
 
 /**
  * After calendar `create` or `update`, add members and opening hours (same order as Apex facade).
  */
-async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calendarNode: any, baseSuccess: any) {
+async function runMembersAndOpeningHoursAfterCalendarSave(
+  calendar: any,
+  calendarNode: any,
+  baseSuccess: any,
+  options: any = {}
+) {
   const calendarIdStr = effectiveCalendarId(calendarNode, calendar);
   if (!calendarIdStr) {
     return {
@@ -213,11 +241,17 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar: any, calenda
     openingHoursSaved += payload.length;
   }
 
-  return {
-    ...baseSuccess,
-    membersAdded,
-    openingHoursSaved,
-  };
+  const withPrefs = await savePreferencesAfterCalendarSave(
+    calendar,
+    calendarIdStr,
+    options,
+    {
+      ...baseSuccess,
+      membersAdded,
+      openingHoursSaved,
+    }
+  );
+  return withPrefs;
 }
 
 /**
@@ -232,7 +266,17 @@ export async function updateCalendarWithRelationsAsync(calendar: any, options: a
   if (!hasMembers && !hasHours) {
     const r = await updateCalendarAsync(calendar, options);
     if (!r.ok) return r;
-    return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+    const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
+    if (!calendarIdStr) {
+      return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+    }
+    const withPrefs = await savePreferencesAfterCalendarSave(
+      calendar,
+      calendarIdStr,
+      options,
+      { ...r, membersAdded: 0, openingHoursSaved: 0 }
+    );
+    return withPrefs;
   }
 
   if (options.localOnly) {
@@ -244,7 +288,7 @@ export async function updateCalendarWithRelationsAsync(calendar: any, options: a
   const updated = await updateCalendarAsync(calendar, options);
   if (!updated.ok) return updated;
 
-  return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated);
+  return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated, options);
 }
 
 /**
