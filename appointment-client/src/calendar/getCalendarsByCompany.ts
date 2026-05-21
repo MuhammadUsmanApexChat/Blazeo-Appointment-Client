@@ -1,5 +1,12 @@
 import { CalendarModel, CalendarParticipantModel } from "@blazeo.com/calendar-client";
 import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
+import {
+  emptyCalendarPreferencesBundle,
+  fetchCalendarPreferences,
+} from "../preference/fetchCalendarPreferences.js";
+import { mergePreferencesIntoCalendarView } from "../preference/mergePreferencesIntoCalendarView.js";
+import { mapToFrontendCalendarView } from "./mapToFrontendCalendarView.js";
 import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
 
 /**
@@ -9,9 +16,22 @@ import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
  */
 export async function getCalendarsByCompany(
   companyKey: string,
-  connection: { baseUrl?: string; consumer?: string } = {}
+  connection: {
+    baseUrl?: string;
+    consumer?: string;
+    includePreferences?: boolean;
+    includeLocations?: boolean;
+    viewFormat?: "frontend" | "unified";
+  } = {}
 ) {
-  const ready = ensureBlazeoHttpReady(connection);
+  const {
+    includePreferences = false,
+    includeLocations: includeLocationsOpt,
+    viewFormat = "frontend",
+    ...httpConnection
+  } = connection;
+  const includeLocations = includeLocationsOpt ?? includePreferences;
+  const ready = ensureBlazeoHttpReady(httpConnection);
   if (!ready.ok) {
     throw new Error(ready.error);
   }
@@ -64,8 +84,30 @@ export async function getCalendarsByCompany(
 
         const members = Array.from(membersMap.values());
 
-        // Use the unified mapper to ensure all properties (duration, calendarId, etc.) are included
-        return mapToDesiredCalendarResponse(cal, [], members);
+        let view = mapToDesiredCalendarResponse(cal, [], members) as Record<string, any>;
+        const [prefs, appointmentLocations] = await Promise.all([
+          includePreferences
+            ? fetchCalendarPreferences(calendarId, httpConnection)
+            : Promise.resolve(null),
+          includeLocations
+            ? fetchCalendarAppointmentLocations(calendarId, httpConnection)
+            : Promise.resolve(null),
+        ]);
+        if (prefs) {
+          view = mergePreferencesIntoCalendarView(
+            view,
+            prefs ?? emptyCalendarPreferencesBundle()
+          );
+        }
+        if (viewFormat === "frontend") {
+          return mapToFrontendCalendarView(
+            view,
+            cal,
+            [],
+            Array.isArray(appointmentLocations) ? appointmentLocations : []
+          );
+        }
+        return view;
       } catch (err) {
         console.error(`[getCalendarsByCompany] Error fetching members for ${calendarId}:`, err);
         // Fallback to minimal mapping if enrichment fails

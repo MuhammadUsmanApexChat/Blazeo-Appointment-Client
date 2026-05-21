@@ -1,4 +1,8 @@
 import { getSnapshot } from "mobx-state-tree";
+import { calendarPayloadHasEventReminders } from "../preference/mapEventReminderPreference.js";
+import { calendarPayloadHasTheme } from "../preference/mapCalendarThemePreference.js";
+import { calendarPayloadHasLocations } from "./mapCalendarLocation.js";
+import { saveCalendarRelationsAfterSave } from "./saveCalendarRelationsAfterSave.js";
 import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
 function isFailureStatus(res) {
@@ -49,6 +53,17 @@ function effectiveCalendarId(calendarNode, input) {
         return fromNode;
     return (input.calendarId?.trim() || undefined);
 }
+async function saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, baseSuccess) {
+    if (options.localOnly) {
+        return baseSuccess;
+    }
+    return saveCalendarRelationsAfterSave(calendar, calendarIdStr, options, baseSuccess);
+}
+export function calendarPayloadHasRelations(calendar) {
+    return (calendarPayloadHasEventReminders(calendar) ||
+        calendarPayloadHasTheme(calendar) ||
+        calendarPayloadHasLocations(calendar));
+}
 /**
  * Orchestrates the same steps as Apex `CalendarCreation.CreateCalendarAsync`:
  * save calendar (`POST /Calendar/Create`), then add participants, then save opening hours
@@ -61,7 +76,12 @@ export async function createCalendarWithRelationsAsync(calendar, options = {}) {
         const r = await createCalendarAsync(calendar, options);
         if (!r.ok)
             return r;
-        return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+        const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
+        if (!calendarIdStr) {
+            return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+        }
+        const withPrefs = await saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, { ...r, membersAdded: 0, openingHoursSaved: 0 });
+        return withPrefs;
     }
     if (options.localOnly) {
         const r = await createCalendarAsync(calendar, options);
@@ -72,12 +92,12 @@ export async function createCalendarWithRelationsAsync(calendar, options = {}) {
     const created = await createCalendarAsync(calendar, options);
     if (!created.ok)
         return created;
-    return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created);
+    return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created, options);
 }
 /**
  * After calendar `create` or `update`, add members and opening hours (same order as Apex facade).
  */
-async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode, baseSuccess) {
+async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode, baseSuccess, options = {}) {
     const calendarIdStr = effectiveCalendarId(calendarNode, calendar);
     if (!calendarIdStr) {
         return {
@@ -194,11 +214,12 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode
         }
         openingHoursSaved += payload.length;
     }
-    return {
+    const withPrefs = await saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, {
         ...baseSuccess,
         membersAdded,
         openingHoursSaved,
-    };
+    });
+    return withPrefs;
 }
 /**
  * Calendar body update, then same member + opening-hour saves as create (Apex-style follow-up).
@@ -212,7 +233,12 @@ export async function updateCalendarWithRelationsAsync(calendar, options = {}) {
         const r = await updateCalendarAsync(calendar, options);
         if (!r.ok)
             return r;
-        return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+        const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
+        if (!calendarIdStr) {
+            return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+        }
+        const withPrefs = await saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, { ...r, membersAdded: 0, openingHoursSaved: 0 });
+        return withPrefs;
     }
     if (options.localOnly) {
         const r = await updateCalendarAsync(calendar, options);
@@ -223,7 +249,7 @@ export async function updateCalendarWithRelationsAsync(calendar, options = {}) {
     const updated = await updateCalendarAsync(calendar, options);
     if (!updated.ok)
         return updated;
-    return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated);
+    return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated, options);
 }
 /**
  * Aligned with `CalendarCreation`: create/update with members & opening hours,

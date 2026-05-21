@@ -1,4 +1,5 @@
 import { type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
+import { type FrontendCalendarView } from "./mapToFrontendCalendarView.js";
 /**
  * Normalizes the REST envelope from `calendar.getParticipantOpeningHours()`
  * (`GET /Calendar/Participant/OpeningHours/Get`) into a plain row array.
@@ -17,6 +18,9 @@ export declare function normalizeOpeningHours(res: any): any[];
  *    - `GET /Calendar/Participant/OpeningHours/All/Get` when options enable it (`preferAllParticipantOpeningHours`)
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
+ * 4. **Preferences** (when `includePreferences`, default with unified view) — parallel
+ *    `GET /preference/{SMSEventReminder|EmailEventReminder|InAppEventReminder|CalendarTheme}?keys={calendarId}`;
+ *    merged as **`preferences`**, plus **`appointmentReminders`** / **`logoUrl`** / **`color`** when not already on the calendar payload.
  *
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
  */
@@ -25,6 +29,15 @@ export declare function fetchCalendarDetails(calendarId: string, options?: {
     includeUnifiedCalendarView?: boolean;
     /** Prefer all-participant opening hours for **`calendarView`** when the API returns rows (default `true`). */
     preferAllParticipantOpeningHours?: boolean;
+    /** Load preferences + `GET /Calendar/Location/Get` into the view (default: same as `includeUnifiedCalendarView`). */
+    includePreferences?: boolean;
+    /** Load `appointmentLocations` via `GET /Calendar/Location/Get` (default: same as `includePreferences`). */
+    includeLocations?: boolean;
+    /**
+     * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
+     * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
+     */
+    viewFormat?: "frontend" | "unified";
     /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
     baseUrl?: string;
     consumer?: string;
@@ -38,4 +51,5 @@ export declare function fetchCalendarDetails(calendarId: string, options?: {
 export declare function fetchCalendarBundle(calendarId: string, connection?: {
     baseUrl?: string;
     consumer?: string;
-}): Promise<UnifiedCalendarView | null>;
+    viewFormat?: "frontend" | "unified";
+}): Promise<FrontendCalendarView | UnifiedCalendarView | null>;

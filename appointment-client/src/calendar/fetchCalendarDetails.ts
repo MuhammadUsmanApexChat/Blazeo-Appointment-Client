@@ -7,8 +7,16 @@ import {
   normalizeParticipantOpeningHoursResponse,
 } from "./fetchCalendarWithOpeningHours.js";
 import { buildUnifiedCalendarView, type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
-import { fetchCalendarPreferences } from "../preference/fetchCalendarPreferences.js";
+import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
+import {
+  emptyCalendarPreferencesBundle,
+  fetchCalendarPreferences,
+} from "../preference/fetchCalendarPreferences.js";
 import { mergePreferencesIntoCalendarView } from "../preference/mergePreferencesIntoCalendarView.js";
+import {
+  mapToFrontendCalendarView,
+  type FrontendCalendarView,
+} from "./mapToFrontendCalendarView.js";
 import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
 
 /**
@@ -87,7 +95,7 @@ function unwrapModelList(raw: any): any[] {
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
  * 4. **Preferences** (when `includePreferences`, default with unified view) — parallel
- *    `GET /preference/SMSEventReminder` + `GET /preference/CalendarTheme` keyed by `calendarId`;
+ *    `GET /preference/{SMSEventReminder|EmailEventReminder|InAppEventReminder|CalendarTheme}?keys={calendarId}`;
  *    merged as **`preferences`**, plus **`appointmentReminders`** / **`logoUrl`** / **`color`** when not already on the calendar payload.
  *
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
@@ -99,8 +107,15 @@ export async function fetchCalendarDetails(
     includeUnifiedCalendarView?: boolean;
     /** Prefer all-participant opening hours for **`calendarView`** when the API returns rows (default `true`). */
     preferAllParticipantOpeningHours?: boolean;
-    /** Load `SMSEventReminder` + `CalendarTheme` into the view (default: same as `includeUnifiedCalendarView`). */
+    /** Load preferences + `GET /Calendar/Location/Get` into the view (default: same as `includeUnifiedCalendarView`). */
     includePreferences?: boolean;
+    /** Load `appointmentLocations` via `GET /Calendar/Location/Get` (default: same as `includePreferences`). */
+    includeLocations?: boolean;
+    /**
+     * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
+     * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
+     */
+    viewFormat?: "frontend" | "unified";
     /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
     baseUrl?: string;
     consumer?: string;
@@ -111,10 +126,13 @@ export async function fetchCalendarDetails(
     includeUnifiedCalendarView = true,
     preferAllParticipantOpeningHours = true,
     includePreferences: includePreferencesOpt,
+    includeLocations: includeLocationsOpt,
+    viewFormat = "frontend",
     baseUrl: optBaseUrl,
     consumer: optConsumer,
   } = options;
   const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
+  const includeLocations = includeLocationsOpt ?? includePreferences;
 
   const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
   if (!conn.ok) {
@@ -185,11 +203,34 @@ export async function fetchCalendarDetails(
       ? getCalPart.call(CalendarModel, calendarId)
       : Promise.resolve(null);
 
-  const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw] = await Promise.all([
+  const preferencesPromise = includePreferences
+    ? fetchCalendarPreferences(calendarId, {
+        baseUrl: conn.baseUrl,
+        consumer: conn.consumer,
+      })
+    : Promise.resolve(null);
+
+  const locationsPromise = includeLocations
+    ? fetchCalendarAppointmentLocations(calendarId, {
+        baseUrl: conn.baseUrl,
+        consumer: conn.consumer,
+      })
+    : Promise.resolve(null);
+
+  const [
+    participantsRaw,
+    participantsViaGet,
+    participantsInfoRaw,
+    allHoursRaw,
+    preferencesBundle,
+    appointmentLocations,
+  ] = await Promise.all([
     cal.getParticipants(),
     participantsViaGetPromise,
     fetchParticipantsInfo ? cal.getParticipantsInfo() : Promise.resolve(null),
     fetchAllHours ? cal.getAllParticipantOpeningHours() : Promise.resolve(null),
+    preferencesPromise,
+    locationsPromise,
   ]);
 
   const participantList = mergeParticipantSnapshots(
@@ -294,37 +335,50 @@ export async function fetchCalendarDetails(
   ) as any;
 
   if (includePreferences) {
-    const prefs = await fetchCalendarPreferences(calendarId, {
-      baseUrl: conn.baseUrl,
-      consumer: conn.consumer,
-    });
-    if (prefs) {
-      finalView = mergePreferencesIntoCalendarView(finalView, prefs);
-    }
+    const prefs = preferencesBundle ?? emptyCalendarPreferencesBundle();
+    finalView = mergePreferencesIntoCalendarView(finalView, prefs);
+  }
+
+  let responseView: Record<string, any> = finalView;
+  if (viewFormat === "frontend") {
+    responseView = mapToFrontendCalendarView(
+      finalView,
+      payload as Record<string, any>,
+      openingHoursForUnifiedView,
+      Array.isArray(appointmentLocations) ? appointmentLocations : []
+    ) as Record<string, any>;
   }
 
   // Attach metadata as non-enumerable properties so they don't show up in JSON.stringify
   // but are still accessible for debugging if needed.
-  Object.defineProperties(finalView, {
+  Object.defineProperties(responseView, {
     _cal: { value: cal, enumerable: false },
     _participants: { value: participantList, enumerable: false },
     _openingHours: { value: openingHours, enumerable: false },
     _rawGet: { value: rawRes, enumerable: false },
+    _enriched: { value: finalView, enumerable: false },
     _meta: { 
       value: {
         ok: true,
+        viewFormat,
         calendarViewUsedAllParticipantOpeningHours: unifiedUsedAllEndpoint,
         calendarViewMemberCount: calendarView.members.length,
         calendarViewOpeningHourCount: calendarView.openingHours.length,
         preferencesIncluded: includePreferences,
         preferenceSmsOptionCount: finalView?.preferences?.smsEventReminder?.options?.length ?? 0,
+        preferenceEmailOptionCount: finalView?.preferences?.emailEventReminder?.options?.length ?? 0,
+        preferenceInAppOptionCount: finalView?.preferences?.inAppEventReminder?.options?.length ?? 0,
         preferenceThemeLoaded: (finalView?.preferences?.calendarTheme?.options?.length ?? 0) > 0,
+        locationsIncluded: includeLocations,
+        appointmentLocationCount: Array.isArray(appointmentLocations)
+          ? appointmentLocations.length
+          : 0,
       }, 
       enumerable: false 
     },
   });
 
-  return finalView as any;
+  return responseView as any;
 }
 
 /**
@@ -335,12 +389,13 @@ export async function fetchCalendarDetails(
  */
 export async function fetchCalendarBundle(
   calendarId: string,
-  connection?: { baseUrl?: string; consumer?: string }
-): Promise<UnifiedCalendarView | null> {
+  connection?: { baseUrl?: string; consumer?: string; viewFormat?: "frontend" | "unified" }
+): Promise<FrontendCalendarView | UnifiedCalendarView | null> {
   const d = await fetchCalendarDetails(calendarId, {
     includeUnifiedCalendarView: true,
     includeParticipantsInfo: true,
     preferAllParticipantOpeningHours: true,
+    viewFormat: connection?.viewFormat ?? "frontend",
     ...connection,
   });
   if (!d) return null;

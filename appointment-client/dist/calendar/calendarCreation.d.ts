@@ -4,6 +4,7 @@ import { deleteCalendarAsync } from "./createCalendar.js";
  * matching `CalendarCreation.SaveOpeningHours`.
  */
 export declare function resolveParticipantIdForOpeningHour(openingHour: any): string | undefined;
+export declare function calendarPayloadHasRelations(calendar: any): boolean;
 /**
  * Orchestrates the same steps as Apex `CalendarCreation.CreateCalendarAsync`:
  * save calendar (`POST /Calendar/Create`), then add participants, then save opening hours

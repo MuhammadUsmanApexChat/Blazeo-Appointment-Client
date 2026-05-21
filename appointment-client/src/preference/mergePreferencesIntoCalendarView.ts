@@ -1,7 +1,7 @@
-import { collectAppointmentReminders } from "./mapSmsEventReminderPreference.js";
+import { collectAppointmentReminders } from "./mapEventReminderPreference.js";
 import {
   buildCalendarPreferencesBundle,
-  mapSmsPreferenceToAppointmentReminders,
+  mapAllPreferenceRemindersToAppointmentReminders,
   type CalendarPreferencesBundle,
 } from "./mapPreferenceFromApi.js";
 
@@ -16,10 +16,9 @@ export function mergePreferencesIntoCalendarView(
 
   merged.preferences = preferences;
 
-  const existingReminders = collectAppointmentReminders(merged);
-  const smsRows = preferences.smsEventReminder.options;
-  if (smsRows.length > 0 && existingReminders.length === 0) {
-    merged.appointmentReminders = mapSmsPreferenceToAppointmentReminders(smsRows);
+  const fromPreferences = mapAllPreferenceRemindersToAppointmentReminders(preferences);
+  if (fromPreferences.length > 0) {
+    merged.appointmentReminders = fromPreferences;
   }
 
   const themeRow = preferences.calendarTheme.options[0];

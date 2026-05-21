@@ -1,5 +1,8 @@
 import { getSnapshot } from "mobx-state-tree";
-import { saveCalendarPreferencesAfterSave } from "../preference/saveCalendarPreferences.js";
+import { calendarPayloadHasEventReminders } from "../preference/mapEventReminderPreference.js";
+import { calendarPayloadHasTheme } from "../preference/mapCalendarThemePreference.js";
+import { calendarPayloadHasLocations } from "./mapCalendarLocation.js";
+import { saveCalendarRelationsAfterSave } from "./saveCalendarRelationsAfterSave.js";
 import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
 
@@ -52,7 +55,7 @@ function effectiveCalendarId(calendarNode: any, input: any) {
   return (input.calendarId?.trim() || undefined);
 }
 
-async function savePreferencesAfterCalendarSave(
+async function saveRelationsAfterCalendarSave(
   calendar: any,
   calendarIdStr: string,
   options: any,
@@ -61,7 +64,15 @@ async function savePreferencesAfterCalendarSave(
   if (options.localOnly) {
     return baseSuccess;
   }
-  return saveCalendarPreferencesAfterSave(calendar, calendarIdStr, options, baseSuccess);
+  return saveCalendarRelationsAfterSave(calendar, calendarIdStr, options, baseSuccess);
+}
+
+export function calendarPayloadHasRelations(calendar: any): boolean {
+  return (
+    calendarPayloadHasEventReminders(calendar) ||
+    calendarPayloadHasTheme(calendar) ||
+    calendarPayloadHasLocations(calendar)
+  );
 }
 
 /**
@@ -80,7 +91,7 @@ export async function createCalendarWithRelationsAsync(calendar: any, options: a
     if (!calendarIdStr) {
       return { ...r, membersAdded: 0, openingHoursSaved: 0 };
     }
-    const withPrefs = await savePreferencesAfterCalendarSave(
+    const withPrefs = await saveRelationsAfterCalendarSave(
       calendar,
       calendarIdStr,
       options,
@@ -241,7 +252,7 @@ async function runMembersAndOpeningHoursAfterCalendarSave(
     openingHoursSaved += payload.length;
   }
 
-  const withPrefs = await savePreferencesAfterCalendarSave(
+  const withPrefs = await saveRelationsAfterCalendarSave(
     calendar,
     calendarIdStr,
     options,
@@ -270,7 +281,7 @@ export async function updateCalendarWithRelationsAsync(calendar: any, options: a
     if (!calendarIdStr) {
       return { ...r, membersAdded: 0, openingHoursSaved: 0 };
     }
-    const withPrefs = await savePreferencesAfterCalendarSave(
+    const withPrefs = await saveRelationsAfterCalendarSave(
       calendar,
       calendarIdStr,
       options,

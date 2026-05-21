@@ -1,10 +1,15 @@
 import type { CalendarThemePreferenceRow } from "./mapCalendarThemePreference.js";
 import {
+  EMAIL_CHANNEL_TYPE,
+  EMAIL_EVENT_REMINDER_OPTION,
+  IN_APP_EVENT_REMINDER_OPTION,
+  NOTIFICATION_CHANNEL_TYPE,
   SMS_CHANNEL_TYPE,
   SMS_EVENT_REMINDER_OPTION,
   type AppointmentReminderInput,
-  type SmsEventReminderPreferenceRow,
-} from "./mapSmsEventReminderPreference.js";
+  type EventReminderPreferenceRow,
+  recipientValueToArray,
+} from "./mapEventReminderPreference.js";
 
 function pick<T>(obj: any, ...keys: string[]): T | undefined {
   for (const k of keys) {
@@ -63,20 +68,38 @@ export function parsePreferenceOptionRows(raw: unknown): Record<string, unknown>
   return [];
 }
 
-function normalizeSmsRows(rows: Record<string, unknown>[]): SmsEventReminderPreferenceRow[] {
+function normalizeEventReminderRows(
+  rows: Record<string, unknown>[],
+  optionName: string
+): EventReminderPreferenceRow[] {
   return rows
     .filter((row) => {
       const name = pick<string>(row, "Name", "name");
-      return !name || name === SMS_EVENT_REMINDER_OPTION;
+      return !name || name === optionName;
     })
-    .map((row) => ({
-      Recipient: (pick<number[]>(row, "Recipient", "recipient") ?? []).map(Number),
-      Before: Number(pick(row, "Before", "before") ?? 0),
-      Unit: Number(pick(row, "Unit", "unit") ?? 1),
-      Name: SMS_EVENT_REMINDER_OPTION as SmsEventReminderPreferenceRow["Name"],
-      Enabled: pick(row, "Enabled", "enabled") !== false,
-    }))
-    .filter((row) => row.Enabled && row.Recipient.length > 0 && row.Before > 0);
+    .map((row) => {
+      const recipientRaw = pick(row, "Recipient", "recipient");
+      const recipientArr = recipientValueToArray(recipientRaw);
+      const recipient =
+        typeof recipientRaw === "number"
+          ? recipientRaw
+          : recipientArr.length === 1 && optionName === IN_APP_EVENT_REMINDER_OPTION
+            ? recipientArr[0]
+            : recipientArr;
+      return {
+        Recipient: recipient,
+        Before: Number(pick(row, "Before", "before") ?? 0),
+        Unit: Number(pick(row, "Unit", "unit") ?? 1),
+        Name: optionName,
+        Enabled: pick(row, "Enabled", "enabled") !== false,
+      };
+    })
+    .filter((row) => {
+      const hasRecipient = Array.isArray(row.Recipient)
+        ? row.Recipient.length > 0
+        : Number(row.Recipient) > 0;
+      return row.Enabled && hasRecipient && row.Before > 0;
+    });
 }
 
 function normalizeThemeRows(rows: Record<string, unknown>[]): CalendarThemePreferenceRow[] {
@@ -94,45 +117,90 @@ function normalizeThemeRows(rows: Record<string, unknown>[]): CalendarThemePrefe
     .filter((row) => row.Enabled && (row.logoUrl || row.color));
 }
 
-/** Preference `Recipient` ints → frontend `recipientType`. */
-export function mapPreferenceRecipientsToRecipientType(recipient: number[]): number {
-  const ids = [...new Set(recipient.map(Number).filter((n) => !Number.isNaN(n)))].sort((a, b) => a - b);
-  if (ids.length === 2 && ids[0] === 1 && ids[1] === 2) return 3;
-  if (ids.length === 1 && ids[0] === 1) return 1;
-  if (ids.length === 1 && ids[0] === 2) return 2;
-  return ids[0] ?? 0;
+/** Preference `Recipient` → frontend `recipientType`. */
+export function mapPreferenceRecipientsToRecipientType(recipient: unknown): number {
+  const ids = recipientValueToArray(recipient);
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  if (sorted.length === 2 && sorted[0] === 1 && sorted[1] === 2) return 3;
+  if (sorted.length === 1 && sorted[0] === 1) return 1;
+  if (sorted.length === 1 && sorted[0] === 2) return 2;
+  return sorted[0] ?? 0;
 }
 
-export function mapSmsPreferenceToAppointmentReminders(
-  rows: SmsEventReminderPreferenceRow[]
+export function mapEventReminderPreferenceToAppointmentReminders(
+  rows: EventReminderPreferenceRow[],
+  channelType: number
 ): AppointmentReminderInput[] {
   return rows.map((row) => ({
-    channelType: SMS_CHANNEL_TYPE,
+    channelType,
     recipientType: mapPreferenceRecipientsToRecipientType(row.Recipient),
     beforeEventTime: row.Before,
     unit: row.Unit,
   }));
 }
 
+export function mapSmsPreferenceToAppointmentReminders(
+  rows: EventReminderPreferenceRow[]
+): AppointmentReminderInput[] {
+  return mapEventReminderPreferenceToAppointmentReminders(rows, SMS_CHANNEL_TYPE);
+}
+
+export function mapEmailPreferenceToAppointmentReminders(
+  rows: EventReminderPreferenceRow[]
+): AppointmentReminderInput[] {
+  return mapEventReminderPreferenceToAppointmentReminders(rows, EMAIL_CHANNEL_TYPE);
+}
+
+export function mapInAppPreferenceToAppointmentReminders(
+  rows: EventReminderPreferenceRow[]
+): AppointmentReminderInput[] {
+  return mapEventReminderPreferenceToAppointmentReminders(rows, NOTIFICATION_CHANNEL_TYPE);
+}
+
+export function mapAllPreferenceRemindersToAppointmentReminders(
+  bundle: CalendarPreferencesBundle
+): AppointmentReminderInput[] {
+  return [
+    ...mapSmsPreferenceToAppointmentReminders(bundle.smsEventReminder.options),
+    ...mapEmailPreferenceToAppointmentReminders(bundle.emailEventReminder.options),
+    ...mapInAppPreferenceToAppointmentReminders(bundle.inAppEventReminder.options),
+  ];
+}
+
 export type CalendarPreferencesBundle = {
-  smsEventReminder: {
-    raw: unknown;
-    options: SmsEventReminderPreferenceRow[];
-  };
-  calendarTheme: {
-    raw: unknown;
-    options: CalendarThemePreferenceRow[];
-  };
+  smsEventReminder: { raw: unknown; options: EventReminderPreferenceRow[] };
+  emailEventReminder: { raw: unknown; options: EventReminderPreferenceRow[] };
+  inAppEventReminder: { raw: unknown; options: EventReminderPreferenceRow[] };
+  calendarTheme: { raw: unknown; options: CalendarThemePreferenceRow[] };
 };
 
 export function buildCalendarPreferencesBundle(
   smsRaw: unknown,
+  emailRaw: unknown,
+  inAppRaw: unknown,
   themeRaw: unknown
 ): CalendarPreferencesBundle {
   return {
     smsEventReminder: {
       raw: smsRaw,
-      options: normalizeSmsRows(parsePreferenceOptionRows(smsRaw)),
+      options: normalizeEventReminderRows(
+        parsePreferenceOptionRows(smsRaw),
+        SMS_EVENT_REMINDER_OPTION
+      ),
+    },
+    emailEventReminder: {
+      raw: emailRaw,
+      options: normalizeEventReminderRows(
+        parsePreferenceOptionRows(emailRaw),
+        EMAIL_EVENT_REMINDER_OPTION
+      ),
+    },
+    inAppEventReminder: {
+      raw: inAppRaw,
+      options: normalizeEventReminderRows(
+        parsePreferenceOptionRows(inAppRaw),
+        IN_APP_EVENT_REMINDER_OPTION
+      ),
     },
     calendarTheme: {
       raw: themeRaw,

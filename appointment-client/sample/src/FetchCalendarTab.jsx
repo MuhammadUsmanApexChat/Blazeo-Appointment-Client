@@ -237,13 +237,9 @@ export function FetchCalendarTab() {
 
       if (result) {
         setOutput(toDisplayJson(result));
-        setNote(`CalendarModel.fetchCalendarDetails → Enriched Unified View (ID: ${id})`);
+        setNote(`CalendarModel.fetchCalendarDetails → frontend calendar view (ID: ${id})`);
         setUpdateJson(toDisplayJson(result));
-        
-        const snap = result._cal ? getSnapshot(result._cal) : null;
-        if (snap) {
-          setLastFetchUpdatePayload(JSON.stringify(calendarSnapshotToUpdatePayload(snap), null, 2));
-        }
+        setLastFetchUpdatePayload(toDisplayJson(result));
       } else {
         setNote(`Calendar not found or error fetching details for ID: ${id}`);
         setOutput("{}");
@@ -423,9 +419,11 @@ export function FetchCalendarTab() {
       <div className="card">
         <h2>Fetch calendar · calendarView</h2>
         <p className="muted small">
-          Runs <code>fetchCalendarDetails(calendarId)</code>. The JSON shown below <strong>is</strong> the unified calendar view:
-          one object with calendar snapshot fields + <code>members</code> + <code>openingHours</code> +{" "}
-          <code>preferences</code> (<code>SMSEventReminder</code>, <code>CalendarTheme</code>), plus a{" "}
+          Runs <code>fetchCalendarDetails(calendarId)</code> (default <code>viewFormat: &quot;frontend&quot;</code>).
+          JSON matches the portal edit payload: <code>openingHours</code> with <code>days[]</code>,{" "}
+          <code>members[].id</code>, <code>appointmentReminders</code>, theme fields,{" "}
+          <code>appointmentUserDefinedFields</code>, <code>appointmentLocations</code>. Legacy enriched shape:{" "}
+          <code>viewFormat: &quot;unified&quot;</code>. Debug: non-enumerable <code>_enriched</code>, <code>_meta</code>. Plus a{" "}
           <code>participants</code> array where each participant may include nested <code>openingHours</code>. (
           <code>fetchCalendarBundle(calendarId)</code> returns the same shape.)
         </p>

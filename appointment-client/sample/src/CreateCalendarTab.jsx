@@ -1,17 +1,31 @@
 import { useMemo, useState } from "react";
 import {
+  calendarPayloadHasEventReminders,
+  calendarPayloadHasTheme,
   collectAppointmentReminders,
   createCalendarAsync,
   createCalendarWithRelationsAsync,
   ensureBlazeoHttpReady,
   mapCalendarThemeToPreferencePayload,
+  mapEmailRemindersToPreferencePayload,
+  mapInAppRemindersToPreferencePayload,
   mapSmsRemindersToPreferencePayload,
 } from "appointment-client";
 import { getSnapshot } from "mobx-state-tree";
 import { configureBlazeoFromEffective, useBlazeoConnection } from "./BlazeoConnectionSettings.jsx";
 import { mapBlazeoDemoError } from "./blazeoDemoError.js";
 
-/** Frontend-style appointment reminders (channelType 1 = SMS → `SMSEventReminder` preference). */
+/** LocationType: Physical=0, Video=1, Phone=2, Custom=3 */
+export function getExampleAppointmentLocations() {
+  return [
+    { type: 2, value: "+112345678901" },
+    { type: 0, value: "Test street" },
+    { type: 1, value: "https://meet.google.com/xyx" },
+    { type: 3, value: "" },
+  ];
+}
+
+/** channelType 1 = SMS, 2 = Email, 3 = Notification/InApp */
 export function getExampleAppointmentReminders() {
   return [
     { channelType: 3, recipientType: 2, beforeEventTime: 45, unit: 1 },
@@ -44,6 +58,7 @@ export function getExampleCalendarBOInput() {
     bufferTimeUnit: 1,
     bookingLimit: -1,
     appointmentReminders: getExampleAppointmentReminders(),
+    appointmentLocations: getExampleAppointmentLocations(),
     members: [{ id: "00000000-0000-0000-0000-000000000000" }],
     openingHours: [
       {
@@ -89,6 +104,24 @@ export function CreateCalendarTab() {
     }
   }, [parsedPayload]);
 
+  const emailPreferencePreview = useMemo(() => {
+    if (!parsedPayload) return null;
+    try {
+      return mapEmailRemindersToPreferencePayload(collectAppointmentReminders(parsedPayload));
+    } catch {
+      return null;
+    }
+  }, [parsedPayload]);
+
+  const inAppPreferencePreview = useMemo(() => {
+    if (!parsedPayload) return null;
+    try {
+      return mapInAppRemindersToPreferencePayload(collectAppointmentReminders(parsedPayload));
+    } catch {
+      return null;
+    }
+  }, [parsedPayload]);
+
   const themePreferencePreview = useMemo(() => {
     if (!parsedPayload) return null;
     try {
@@ -102,19 +135,31 @@ export function CreateCalendarTab() {
     if (localOnly) return "Local only: no HTTP.";
     if (!effective.baseUrl) return "Set Base URL above first.";
     const hasSms = (smsPreferencePreview?.length ?? 0) > 0;
+    const hasEmail = (emailPreferencePreview?.length ?? 0) > 0;
+    const hasInApp = (inAppPreferencePreview?.length ?? 0) > 0;
     const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
     const relations = saveRelations
       ? "calendar + participants + opening hours"
       : "calendar body only";
     const prefs = [];
     if (hasSms) prefs.push("SMSEventReminder");
+    if (hasEmail) prefs.push("EmailEventReminder");
+    if (hasInApp) prefs.push("InAppEventReminder");
     if (hasTheme) prefs.push("CalendarTheme");
     const pref =
       prefs.length > 0
         ? ` · then POST /preference/Calendar/{calendarId}/(${prefs.join(", ")})`
         : "";
     return `Will save ${relations}${pref}.`;
-  }, [localOnly, effective.baseUrl, saveRelations, smsPreferencePreview, themePreferencePreview]);
+  }, [
+    localOnly,
+    effective.baseUrl,
+    saveRelations,
+    smsPreferencePreview,
+    emailPreferencePreview,
+    inAppPreferencePreview,
+    themePreferencePreview,
+  ]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -140,11 +185,9 @@ export function CreateCalendarTab() {
     }
 
     const hasRelations = (payload.members?.length ?? 0) > 0 || (payload.openingHours?.length ?? 0) > 0;
-    const hasSmsReminders =
-      mapSmsRemindersToPreferencePayload(collectAppointmentReminders(payload)).length > 0;
-    const hasTheme = mapCalendarThemeToPreferencePayload(payload).length > 0;
-    const useRelations =
-      !localOnly && (saveRelations && hasRelations || hasSmsReminders || hasTheme);
+    const hasPrefs =
+      calendarPayloadHasEventReminders(payload) || calendarPayloadHasTheme(payload);
+    const useRelations = !localOnly && (saveRelations && hasRelations || hasPrefs);
 
     setBusy(true);
     try {
@@ -163,6 +206,10 @@ export function CreateCalendarTab() {
             ok: true,
             smsRemindersPreferenceSaved: result.smsRemindersPreferenceSaved,
             smsRemindersPreference: result.smsRemindersPreference,
+            emailRemindersPreferenceSaved: result.emailRemindersPreferenceSaved,
+            emailRemindersPreference: result.emailRemindersPreference,
+            inAppRemindersPreferenceSaved: result.inAppRemindersPreferenceSaved,
+            inAppRemindersPreference: result.inAppRemindersPreference,
             calendarThemePreferenceSaved: result.calendarThemePreferenceSaved,
             calendarThemePreference: result.calendarThemePreference,
             membersAdded: result.membersAdded,
@@ -209,6 +256,29 @@ export function CreateCalendarTab() {
             <code>POST /preference/Calendar/&#123;calendarId&#125;/SMSEventReminder</code>
           </p>
           <pre className="pre-block">{JSON.stringify(smsPreferencePreview, null, 2)}</pre>
+        </div>
+      ) : null}
+
+      {emailPreferencePreview?.length ? (
+        <div className="card">
+          <h2>Email preference preview</h2>
+          <p className="muted small">
+            <code>channelType: 2</code> →{" "}
+            <code>POST /preference/Calendar/&#123;calendarId&#125;/EmailEventReminder</code>
+          </p>
+          <pre className="pre-block">{JSON.stringify(emailPreferencePreview, null, 2)}</pre>
+        </div>
+      ) : null}
+
+      {inAppPreferencePreview?.length ? (
+        <div className="card">
+          <h2>In-app preference preview</h2>
+          <p className="muted small">
+            <code>channelType: 3</code> →{" "}
+            <code>POST /preference/Calendar/&#123;calendarId&#125;/InAppEventReminder</code> (
+            <code>Recipient</code> scalar)
+          </p>
+          <pre className="pre-block">{JSON.stringify(inAppPreferencePreview, null, 2)}</pre>
         </div>
       ) : null}
 

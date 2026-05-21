@@ -6,6 +6,7 @@ export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
 export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel as MSTEventModel, ParticipantModel as MSTParticipantModel } from "./models/CalendarRootModel.js";
 export { fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
+export { mapToFrontendCalendarView, mapOpeningHoursToFrontend, type FrontendCalendarOpeningHour, type FrontendCalendarMember, } from "./calendar/mapToFrontendCalendarView.js";
 export { buildUnifiedCalendarView, type UnifiedCalendarMember, type UnifiedCalendarView, type UnifiedOpeningHourRow, type UnifiedParticipantWithHours, } from "./calendar/buildUnifiedCalendarView.js";
 export { fetchCalendarWithOpeningHours, unwrapCalendarGetData, pickOpeningHoursArrayFromCalendarPayload, normalizeParticipantOpeningHoursResponse } from "./calendar/fetchCalendarWithOpeningHours.js";
 export { getOpeningHours } from "./calendar/getOpeningHours.js";
@@ -18,14 +19,31 @@ export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithR
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export { mapAppointmentToEventSnapshot } from "./events/mapAppointmentToEventSnapshot.js";
+export { setPreferenceAsync, type BlazeoPreferenceConnection } from "./preference/setPreference.js";
+export { collectAppointmentReminders, mapSmsRemindersToPreferencePayload, mapEmailRemindersToPreferencePayload, mapInAppRemindersToPreferencePayload, mapReminderRecipients, calendarPayloadHasEventReminders, SMS_CHANNEL_TYPE, EMAIL_CHANNEL_TYPE, NOTIFICATION_CHANNEL_TYPE, SMS_EVENT_REMINDER_OPTION, EMAIL_EVENT_REMINDER_OPTION, IN_APP_EVENT_REMINDER_OPTION, REMINDER_CHANNEL_CONFIGS, type AppointmentReminderInput, type EventReminderPreferenceRow, type SmsEventReminderPreferenceRow, } from "./preference/mapEventReminderPreference.js";
+export { saveCalendarSmsRemindersPreference, saveCalendarEmailRemindersPreference, saveCalendarInAppRemindersPreference, } from "./preference/saveCalendarSmsReminders.js";
+export { mapCalendarThemeToPreferencePayload, calendarPayloadHasTheme, CALENDAR_THEME_OPTION, type CalendarThemePreferenceRow, } from "./preference/mapCalendarThemePreference.js";
+export { saveCalendarThemePreference } from "./preference/saveCalendarThemePreference.js";
+export { saveCalendarPreferencesAfterSave } from "./preference/saveCalendarPreferences.js";
+export { fetchCalendarPreferences, emptyCalendarPreferencesBundle, type FetchCalendarPreferencesOptions, } from "./preference/fetchCalendarPreferences.js";
+export { parsePreferenceOptionRows, mapSmsPreferenceToAppointmentReminders, mapEmailPreferenceToAppointmentReminders, mapInAppPreferenceToAppointmentReminders, mapAllPreferenceRemindersToAppointmentReminders, mapPreferenceRecipientsToRecipientType, buildCalendarPreferencesBundle, type CalendarPreferencesBundle, } from "./preference/mapPreferenceFromApi.js";
+export { mergePreferencesIntoCalendarView } from "./preference/mergePreferencesIntoCalendarView.js";
+export { collectAppointmentLocations, mapApiLocationToFrontend, mapFrontendLocationToSavePayload, calendarPayloadHasLocations, sortFrontendLocations, type FrontendAppointmentLocation, type CalendarLocationSavePayload, } from "./calendar/mapCalendarLocation.js";
+export { fetchCalendarAppointmentLocations, type FetchCalendarLocationsOptions, } from "./calendar/fetchCalendarLocations.js";
+export { saveCalendarAppointmentLocations, type SaveCalendarLocationsResult, } from "./calendar/saveCalendarLocations.js";
+export { saveCalendarRelationsAfterSave } from "./calendar/saveCalendarRelationsAfterSave.js";
+export { calendarPayloadHasRelations } from "./calendar/calendarCreation.js";
+export { getCalendarLocationsByCalendar, saveCalendarLocationApi, } from "./calendar/calendarLocationHttp.js";
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
 import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
 import { getAppointmentsByFilter } from "./events/getAppointmentsByFilter.js";
 export { getCalendarsByCompany, fetchCalendarDetails, getAppointmentsByFilter };
-import { EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel as CoreCalendarParticipantModel, LeadModel as CoreLeadModel, configure, getConfig } from "@blazeo.com/calendar-client";
+import { EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel as CoreCalendarParticipantModel, LeadModel as CoreLeadModel, PreferenceModel as CorePreferenceModel, PreferenceScope, configure, getConfig } from "@blazeo.com/calendar-client";
 export declare const CalendarModel: {
     getCalendarsByCompany: typeof getCalendarsByCompany;
     fetchCalendarDetails: typeof fetchCalendarDetails;
+    /** Full calendar view: members, opening hours, and all preferences (alias of `fetchCalendarDetails`). */
+    getCalendarView: typeof fetchCalendarDetails;
     get(calendarId: string): Promise<unknown>;
     getRaw(calendarId: string): Promise<{
         status: string;
@@ -60,7 +78,7 @@ export declare const CalendarModel: {
         env?: object;
     }): unknown;
 };
-export { CoreEventModel as EventModel, CoreParticipantModel as ParticipantModel, CoreCalendarParticipantModel as CalendarParticipantModel, CoreLeadModel as LeadModel, CoreEventModel, CoreParticipantModel, configure, getConfig };
+export { CoreEventModel as EventModel, CoreParticipantModel as ParticipantModel, CoreCalendarParticipantModel as CalendarParticipantModel, CoreLeadModel as LeadModel, CorePreferenceModel as PreferenceModel, PreferenceScope, CoreEventModel, CoreParticipantModel, configure, getConfig };
 export declare const packageName = "@blazeo.com/appointment-client";
 export declare class CalendarClient {
     name: string;

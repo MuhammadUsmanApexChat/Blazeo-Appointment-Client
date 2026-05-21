@@ -18,6 +18,12 @@ export {
 } from "./models/CalendarRootModel.js";
 export { fetchCalendarBundle, normalizeOpeningHours } from "./calendar/fetchCalendarDetails.js";
 export {
+  mapToFrontendCalendarView,
+  mapOpeningHoursToFrontend,
+  type FrontendCalendarOpeningHour,
+  type FrontendCalendarMember,
+} from "./calendar/mapToFrontendCalendarView.js";
+export {
   buildUnifiedCalendarView,
   type UnifiedCalendarMember,
   type UnifiedCalendarView,
@@ -41,13 +47,26 @@ export { setPreferenceAsync, type BlazeoPreferenceConnection } from "./preferenc
 export {
   collectAppointmentReminders,
   mapSmsRemindersToPreferencePayload,
+  mapEmailRemindersToPreferencePayload,
+  mapInAppRemindersToPreferencePayload,
   mapReminderRecipients,
+  calendarPayloadHasEventReminders,
   SMS_CHANNEL_TYPE,
+  EMAIL_CHANNEL_TYPE,
+  NOTIFICATION_CHANNEL_TYPE,
   SMS_EVENT_REMINDER_OPTION,
+  EMAIL_EVENT_REMINDER_OPTION,
+  IN_APP_EVENT_REMINDER_OPTION,
+  REMINDER_CHANNEL_CONFIGS,
   type AppointmentReminderInput,
+  type EventReminderPreferenceRow,
   type SmsEventReminderPreferenceRow,
-} from "./preference/mapSmsEventReminderPreference.js";
-export { saveCalendarSmsRemindersPreference } from "./preference/saveCalendarSmsReminders.js";
+} from "./preference/mapEventReminderPreference.js";
+export {
+  saveCalendarSmsRemindersPreference,
+  saveCalendarEmailRemindersPreference,
+  saveCalendarInAppRemindersPreference,
+} from "./preference/saveCalendarSmsReminders.js";
 export {
   mapCalendarThemeToPreferencePayload,
   calendarPayloadHasTheme,
@@ -56,15 +75,45 @@ export {
 } from "./preference/mapCalendarThemePreference.js";
 export { saveCalendarThemePreference } from "./preference/saveCalendarThemePreference.js";
 export { saveCalendarPreferencesAfterSave } from "./preference/saveCalendarPreferences.js";
-export { fetchCalendarPreferences, type FetchCalendarPreferencesOptions } from "./preference/fetchCalendarPreferences.js";
+export {
+  fetchCalendarPreferences,
+  emptyCalendarPreferencesBundle,
+  type FetchCalendarPreferencesOptions,
+} from "./preference/fetchCalendarPreferences.js";
 export {
   parsePreferenceOptionRows,
   mapSmsPreferenceToAppointmentReminders,
+  mapEmailPreferenceToAppointmentReminders,
+  mapInAppPreferenceToAppointmentReminders,
+  mapAllPreferenceRemindersToAppointmentReminders,
   mapPreferenceRecipientsToRecipientType,
   buildCalendarPreferencesBundle,
   type CalendarPreferencesBundle,
 } from "./preference/mapPreferenceFromApi.js";
 export { mergePreferencesIntoCalendarView } from "./preference/mergePreferencesIntoCalendarView.js";
+export {
+  collectAppointmentLocations,
+  mapApiLocationToFrontend,
+  mapFrontendLocationToSavePayload,
+  calendarPayloadHasLocations,
+  sortFrontendLocations,
+  type FrontendAppointmentLocation,
+  type CalendarLocationSavePayload,
+} from "./calendar/mapCalendarLocation.js";
+export {
+  fetchCalendarAppointmentLocations,
+  type FetchCalendarLocationsOptions,
+} from "./calendar/fetchCalendarLocations.js";
+export {
+  saveCalendarAppointmentLocations,
+  type SaveCalendarLocationsResult,
+} from "./calendar/saveCalendarLocations.js";
+export { saveCalendarRelationsAfterSave } from "./calendar/saveCalendarRelationsAfterSave.js";
+export { calendarPayloadHasRelations } from "./calendar/calendarCreation.js";
+export {
+  getCalendarLocationsByCalendar,
+  saveCalendarLocationApi,
+} from "./calendar/calendarLocationHttp.js";
 
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
 import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";
@@ -87,7 +136,9 @@ import {
 export const CalendarModel = {
   ...CoreCalendarModel,
   getCalendarsByCompany,
-  fetchCalendarDetails
+  fetchCalendarDetails,
+  /** Full calendar view: members, opening hours, and all preferences (alias of `fetchCalendarDetails`). */
+  getCalendarView: fetchCalendarDetails,
 };
 
 export { 
