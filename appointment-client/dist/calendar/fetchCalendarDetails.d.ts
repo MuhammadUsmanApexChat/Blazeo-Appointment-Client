@@ -33,6 +33,8 @@ export declare function fetchCalendarDetails(calendarId: string, options?: {
     includePreferences?: boolean;
     /** Load `appointmentLocations` via `GET /Calendar/Location/Get` (default: same as `includePreferences`). */
     includeLocations?: boolean;
+    /** Load `appointmentUserDefinedFields` via `GET /CustomField/Form/Get` (default: same as `includeUnifiedCalendarView`). */
+    includeFormFields?: boolean;
     /**
      * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.

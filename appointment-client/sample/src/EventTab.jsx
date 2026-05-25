@@ -14,33 +14,62 @@ import {
 } from "./BlazeoConnectionSettings.jsx";
 import { mapBlazeoDemoError } from "./blazeoDemoError.js";
 
-function getExampleCreatePayload() {
+/** Saved calendar location — set `calendarLocationId` from Calendar → Locations. */
+function getExampleCreateWithCalendarLocationPayload() {
   const start = new Date();
   start.setHours(10, 0, 0, 0);
   const end = new Date(start);
   end.setHours(10, 30, 0, 0);
   return {
-    calendarId:  "690bc3d7-e28e-44f0-8f54-ec7a04ea164c",
+    calendarId: "690bc3d7-e28e-44f0-8f54-ec7a04ea164c",
     participantId: "9f5a5ec0-402e-42e0-a9d9-9973750fcaa8",
-    title: "Sample appointment",
-    description: "Created via appointment-client sample",
+    title: "Sample appointment (saved location)",
+    description: "Uses calendarLocationId from a saved calendar location",
     startDate: start.toISOString(),
     endDate: end.toISOString(),
     email: "visitor@example.com",
     visitorName: "Visitor",
     timeZone: "Pakistan Standard Time",
+    // API field name (portal may send customLocationId instead — both work)
+    calendarLocationId: "00000000-0000-0000-0000-000000000001",
     rescheduleUrl: "https://example.com/reschedule",
     cancelUrl: "https://example.com/cancel",
   };
 }
 
-function getExampleReschedulePayload() {
+/** Free-text location — `customLocation` is stored when no saved location id is used. */
+function getExampleCreateWithCustomLocationPayload() {
+  const start = new Date();
+  start.setHours(11, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(11, 30, 0, 0);
+  return {
+    calendarId: "690bc3d7-e28e-44f0-8f54-ec7a04ea164c",
+    participantId: "9f5a5ec0-402e-42e0-a9d9-9973750fcaa8",
+    title: "Sample appointment (custom location)",
+    description: "Uses customLocation text instead of calendarLocationId",
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+    email: "visitor@example.com",
+    visitorName: "Visitor",
+    timeZone: "Pakistan Standard Time",
+    customLocation: "123 Main St, Conference Room B",
+    rescheduleUrl: "https://example.com/reschedule",
+    cancelUrl: "https://example.com/cancel",
+  };
+}
+
+function getExampleCreatePayload() {
+  return getExampleCreateWithCalendarLocationPayload();
+}
+
+function getExampleReschedulePayload(locationMode = "calendar") {
   const start = new Date();
   start.setDate(start.getDate() + 1);
   start.setHours(14, 0, 0, 0);
   const end = new Date(start);
   end.setHours(14, 45, 0, 0);
-  return {
+  const base = {
     eventId: "existing-blazeo-event-id",
     calendarId: "00000000-0000-0000-0000-000000000000",
     participantId: "00000000-0000-0000-0000-000000000000",
@@ -51,15 +80,25 @@ function getExampleReschedulePayload() {
     email: "visitor@example.com",
     timeZone: "Pakistan Standard Time",
   };
+  if (locationMode === "custom") {
+    return { ...base, customLocation: "Updated: Virtual — https://meet.example.com/room" };
+  }
+  return {
+    ...base,
+    calendarLocationId: "00000000-0000-0000-0000-000000000001",
+  };
 }
 
 function resultToJson(result) {
   if (!result) return "";
   if (result.ok && result.event && isStateTreeNode(result.event)) {
+    const snap = getSnapshot(result.event);
     return JSON.stringify(
       {
         ok: true,
-        eventSnapshot: getSnapshot(result.event),
+        eventSnapshot: snap,
+        calendarLocationId: snap.calendarLocationId ?? null,
+        customLocation: snap.customLocation ?? null,
         apiResponse: result.apiResponse ?? null,
       },
       null,
@@ -150,7 +189,6 @@ export function EventTab() {
     }
     setBusy(true);
     try {
-      debugger;
       const result = await createAppointmentEventAsync(payload, eventOpts);
       setOutput(resultToJson(result));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));
@@ -365,6 +403,11 @@ export function EventTab() {
 
       <div className="card">
         <h2>Create event</h2>
+        <p className="muted small">
+          Saved location: <code>calendarLocationId</code> or portal alias{" "}
+          <code>customLocationId</code> / <code>CustomLocationId</code>. Free text:{" "}
+          <code>customLocation</code>. Custom text wins when both are set.
+        </p>
         <form onSubmit={handleCreate} className="form">
           <label className="form__label">
             <span>Payload (JSON)</span>
@@ -376,6 +419,32 @@ export function EventTab() {
               rows={14}
             />
           </label>
+          <div className="connection-card__row">
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setCreateJson(
+                  JSON.stringify(getExampleCreateWithCalendarLocationPayload(), null, 2)
+                )
+              }
+            >
+              Example: saved location
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setCreateJson(
+                  JSON.stringify(getExampleCreateWithCustomLocationPayload(), null, 2)
+                )
+              }
+            >
+              Example: custom location
+            </button>
+          </div>
           <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Working…" : "Create"}
           </button>
@@ -384,6 +453,10 @@ export function EventTab() {
 
       <div className="card">
         <h2>Reschedule event</h2>
+        <p className="muted small">
+          Include <code>calendarLocationId</code> or <code>customLocation</code> in the reschedule
+          payload to update where the event is held.
+        </p>
         <form onSubmit={handleReschedule} className="form">
           <label className="form__label">
             <span>Payload (JSON)</span>
@@ -395,6 +468,28 @@ export function EventTab() {
               rows={14}
             />
           </label>
+          <div className="connection-card__row">
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setRescheduleJson(JSON.stringify(getExampleReschedulePayload("calendar"), null, 2))
+              }
+            >
+              Example: saved location
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setRescheduleJson(JSON.stringify(getExampleReschedulePayload("custom"), null, 2))
+              }
+            >
+              Example: custom location
+            </button>
+          </div>
           <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Working…" : "Reschedule"}
           </button>

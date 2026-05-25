@@ -1,6 +1,7 @@
 import { getSnapshot } from "mobx-state-tree";
 import { calendarPayloadHasEventReminders } from "../preference/mapEventReminderPreference.js";
 import { calendarPayloadHasTheme } from "../preference/mapCalendarThemePreference.js";
+import { calendarPayloadHasFormFields } from "./mapCalendarForm.js";
 import { calendarPayloadHasLocations } from "./mapCalendarLocation.js";
 import { saveCalendarRelationsAfterSave } from "./saveCalendarRelationsAfterSave.js";
 import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
@@ -62,7 +63,8 @@ async function saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, 
 export function calendarPayloadHasRelations(calendar) {
     return (calendarPayloadHasEventReminders(calendar) ||
         calendarPayloadHasTheme(calendar) ||
-        calendarPayloadHasLocations(calendar));
+        calendarPayloadHasLocations(calendar) ||
+        calendarPayloadHasFormFields(calendar));
 }
 /**
  * Orchestrates the same steps as Apex `CalendarCreation.CreateCalendarAsync`:

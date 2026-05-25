@@ -1,3 +1,12 @@
+import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
+import {
+  resolveEventLocationFields,
+  pickEventLocationFromEvent,
+} from "./mapAppointmentEventLocation.js";
+
+export type { AppointmentEventLocationInput, ResolvedEventLocation } from "./mapAppointmentEventLocation.js";
+export { resolveEventLocationFields, pickEventLocationFromEvent, appointmentInputHasLocation } from "./mapAppointmentEventLocation.js";
+
 function parseDate(value: any) {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) {
@@ -17,6 +26,10 @@ function normalizeGuid(id: string) {
   return id.trim().replace(/^\{|\}$/g, "");
 }
 
+function optionalLocationString(value: string | null): string | undefined {
+  return value != null && value !== "" ? value : undefined;
+}
+
 /**
  * Maps Apex appointment input to a Blazeo `Event` MST snapshot for
  * {@link EventModel.create} from `@blazeo.com/calendar-client`.
@@ -33,6 +46,8 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
   const phone = input.phone ?? input.visitorPhone ?? null;
   const visitorName = input.visitorName?.trim() || null;
 
+  const { calendarLocationId, customLocation } = resolveEventLocationFields(input);
+
   const snap: any = {
     calendarId: normalizeGuid(input.calendarId ?? ""),
     participantId: normalizeGuid(input.participantId),
@@ -47,6 +62,8 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
     visitorName,
     visitorEmail: email,
     visitorPhone: phone,
+    calendarLocationId: optionalLocationString(calendarLocationId),
+    customLocation: optionalLocationString(customLocation),
     rescheduleLink: input.rescheduleUrl ?? null,
     cancelLink: input.cancelUrl ?? null,
     timeZone: input.timeZone ?? null,
@@ -64,4 +81,19 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
   }
 
   return snap;
+}
+
+/** Plain event row including location fields (from MST snapshot or API body). */
+export function mapAppointmentEventToPlain(event: any): Record<string, unknown> {
+  const raw = isStateTreeNode(event) ? getSnapshot(event) : event;
+  const loc = pickEventLocationFromEvent(raw);
+  const base =
+    raw != null && typeof raw === "object" ? { ...(raw as Record<string, unknown>) } : {};
+  return {
+    ...base,
+    calendarLocationId: loc.calendarLocationId,
+    customLocation: loc.customLocation,
+    /** Portal alias — same value as `calendarLocationId` when a saved location was used. */
+    customLocationId: loc.calendarLocationId,
+  };
 }

@@ -1,3 +1,4 @@
+import { saveCalendarAppointmentForm } from "./saveCalendarForm.js";
 import { saveCalendarAppointmentLocations } from "./saveCalendarLocations.js";
 import { saveCalendarPreferencesAfterSave } from "../preference/saveCalendarPreferences.js";
 import type { BlazeoPreferenceConnection } from "../preference/setPreference.js";
@@ -37,5 +38,20 @@ export async function saveCalendarRelationsAfterSave(
     };
   }
 
-  return appendLocationsResult(withPrefs, loc);
+  const withLoc = appendLocationsResult(withPrefs, loc);
+
+  const form = await saveCalendarAppointmentForm(calendarId, calendar, connection);
+  if (!form.ok) {
+    return {
+      ok: false,
+      error: form.error,
+      ...(form.apiResponse != null ? { apiResponse: form.apiResponse } : {}),
+    };
+  }
+
+  return {
+    ...withLoc,
+    appointmentFormSaved: !form.skipped,
+    ...(form.skipped ? {} : { appointmentFormFields: form.apiFields }),
+  };
 }

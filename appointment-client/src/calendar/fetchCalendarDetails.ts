@@ -8,6 +8,7 @@ import {
 } from "./fetchCalendarWithOpeningHours.js";
 import { buildUnifiedCalendarView, type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
 import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
+import { fetchCalendarAppointmentForm } from "./fetchCalendarForm.js";
 import {
   emptyCalendarPreferencesBundle,
   fetchCalendarPreferences,
@@ -111,6 +112,8 @@ export async function fetchCalendarDetails(
     includePreferences?: boolean;
     /** Load `appointmentLocations` via `GET /Calendar/Location/Get` (default: same as `includePreferences`). */
     includeLocations?: boolean;
+    /** Load `appointmentUserDefinedFields` via `GET /CustomField/Form/Get` (default: same as `includeUnifiedCalendarView`). */
+    includeFormFields?: boolean;
     /**
      * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
@@ -127,12 +130,14 @@ export async function fetchCalendarDetails(
     preferAllParticipantOpeningHours = true,
     includePreferences: includePreferencesOpt,
     includeLocations: includeLocationsOpt,
+    includeFormFields: includeFormFieldsOpt,
     viewFormat = "frontend",
     baseUrl: optBaseUrl,
     consumer: optConsumer,
   } = options;
   const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
   const includeLocations = includeLocationsOpt ?? includePreferences;
+  const includeFormFields = includeFormFieldsOpt ?? includeUnifiedCalendarView;
 
   const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
   if (!conn.ok) {
@@ -217,6 +222,13 @@ export async function fetchCalendarDetails(
       })
     : Promise.resolve(null);
 
+  const formFieldsPromise = includeFormFields
+    ? fetchCalendarAppointmentForm(calendarId, {
+        baseUrl: conn.baseUrl,
+        consumer: conn.consumer,
+      })
+    : Promise.resolve(null);
+
   const [
     participantsRaw,
     participantsViaGet,
@@ -224,6 +236,7 @@ export async function fetchCalendarDetails(
     allHoursRaw,
     preferencesBundle,
     appointmentLocations,
+    appointmentUserDefinedFields,
   ] = await Promise.all([
     cal.getParticipants(),
     participantsViaGetPromise,
@@ -231,6 +244,7 @@ export async function fetchCalendarDetails(
     fetchAllHours ? cal.getAllParticipantOpeningHours() : Promise.resolve(null),
     preferencesPromise,
     locationsPromise,
+    formFieldsPromise,
   ]);
 
   const participantList = mergeParticipantSnapshots(
@@ -339,6 +353,14 @@ export async function fetchCalendarDetails(
     finalView = mergePreferencesIntoCalendarView(finalView, prefs);
   }
 
+  if (
+    includeFormFields &&
+    Array.isArray(appointmentUserDefinedFields) &&
+    appointmentUserDefinedFields.length > 0
+  ) {
+    finalView.appointmentUserDefinedFields = appointmentUserDefinedFields;
+  }
+
   let responseView: Record<string, any> = finalView;
   if (viewFormat === "frontend") {
     responseView = mapToFrontendCalendarView(
@@ -372,6 +394,10 @@ export async function fetchCalendarDetails(
         locationsIncluded: includeLocations,
         appointmentLocationCount: Array.isArray(appointmentLocations)
           ? appointmentLocations.length
+          : 0,
+        formFieldsIncluded: includeFormFields,
+        appointmentUserDefinedFieldCount: Array.isArray(appointmentUserDefinedFields)
+          ? appointmentUserDefinedFields.length
           : 0,
       }, 
       enumerable: false 

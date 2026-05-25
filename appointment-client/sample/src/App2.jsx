@@ -14,7 +14,7 @@ import { AvailabilityTab } from "./AvailabilityTab.jsx";
 import { CreateCalendarTab } from "./CreateCalendarTab.jsx";
 import { FetchCalendarTab } from "./FetchCalendarTab.jsx";
 import { OpeningHoursTab } from "./OpeningHoursTab.jsx";
-
+import { FieldTypeTab } from "./FieldTypeTab.jsx";
 const TABS = [
   { id: "calendar", label: "Calendar" },
   /** `FetchCalendarTab` → `fetchCalendarDetails` + `calendarView` (unified object). */
@@ -27,6 +27,7 @@ const TABS = [
   { id: "participant-opening-hours", label: "Participant opening hours" },
   { id: "all-participant-opening-hours", label: "All participant opening hours" },
   { id: "availability", label: "Availability / booking" },
+  { id: "field-types", label: "Field types" },
 ];
 
 function ConnectionSettingsCard() {
@@ -188,6 +189,11 @@ function AppShell() {
         {activeId === "availability" && (
           <section role="tabpanel" id="panel-availability" aria-labelledby="tab-availability">
             <AvailabilityTab />
+          </section>
+        )}
+        {activeId === "field-types" && (
+          <section role="tabpanel" id="panel-field-types" aria-labelledby="tab-field-types">
+            <FieldTypeTab />
           </section>
         )}
       </div>

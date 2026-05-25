@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import {
   calendarPayloadHasEventReminders,
+  calendarPayloadHasFormFields,
   calendarPayloadHasTheme,
   collectAppointmentReminders,
   createCalendarAsync,
   createCalendarWithRelationsAsync,
   ensureBlazeoHttpReady,
+  mapCalendarFormFieldsToApi,
   mapCalendarThemeToPreferencePayload,
   mapEmailRemindersToPreferencePayload,
   mapInAppRemindersToPreferencePayload,
@@ -72,6 +74,28 @@ export function getExampleCalendarBOInput() {
         participantId: "00000000-0000-0000-0000-000000000000",
       },
     ],
+    appointmentUserDefinedFields: [
+      {
+        fieldLabel: "First Name",
+        fieldKey: "FirstName",
+        fieldId: "0702d225-45b1-4381-b24b-e788b17c2915",
+        isRequired: true,
+        isMandatory: true,
+      },
+      {
+        fieldLabel: "Email",
+        fieldKey: "Email",
+        fieldId: "c2c08947-4050-41ba-8d59-3ccff8bbbd79",
+        isRequired: true,
+        isMandatory: true,
+      },
+      {
+        fieldName: "Test dropdown",
+        fieldType: 3,
+        fieldSubType: 303,
+        leadCustomOptions: [{ value: "A" }, { value: "B" }],
+      },
+    ],
   };
 }
 
@@ -131,6 +155,15 @@ export function CreateCalendarTab() {
     }
   }, [parsedPayload]);
 
+  const formFieldsPreview = useMemo(() => {
+    if (!parsedPayload || !calendarPayloadHasFormFields(parsedPayload)) return null;
+    try {
+      return mapCalendarFormFieldsToApi(parsedPayload);
+    } catch {
+      return null;
+    }
+  }, [parsedPayload]);
+
   const hint = useMemo(() => {
     if (localOnly) return "Local only: no HTTP.";
     if (!effective.baseUrl) return "Set Base URL above first.";
@@ -138,6 +171,7 @@ export function CreateCalendarTab() {
     const hasEmail = (emailPreferencePreview?.length ?? 0) > 0;
     const hasInApp = (inAppPreferencePreview?.length ?? 0) > 0;
     const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
+    const hasForm = (formFieldsPreview?.length ?? 0) > 0;
     const relations = saveRelations
       ? "calendar + participants + opening hours"
       : "calendar body only";
@@ -150,7 +184,10 @@ export function CreateCalendarTab() {
       prefs.length > 0
         ? ` · then POST /preference/Calendar/{calendarId}/(${prefs.join(", ")})`
         : "";
-    return `Will save ${relations}${pref}.`;
+    const form = hasForm
+      ? ` · then POST /CustomField/Form/Save from appointmentUserDefinedFields (${formFieldsPreview.length} field(s))`
+      : "";
+    return `Will save ${relations}${pref}${form}.`;
   }, [
     localOnly,
     effective.baseUrl,
@@ -159,6 +196,7 @@ export function CreateCalendarTab() {
     emailPreferencePreview,
     inAppPreferencePreview,
     themePreferencePreview,
+    formFieldsPreview,
   ]);
 
   async function handleSubmit(e) {
@@ -187,7 +225,9 @@ export function CreateCalendarTab() {
     const hasRelations = (payload.members?.length ?? 0) > 0 || (payload.openingHours?.length ?? 0) > 0;
     const hasPrefs =
       calendarPayloadHasEventReminders(payload) || calendarPayloadHasTheme(payload);
-    const useRelations = !localOnly && (saveRelations && hasRelations || hasPrefs);
+    const hasForm = calendarPayloadHasFormFields(payload);
+    const useRelations =
+      !localOnly && (saveRelations && hasRelations || hasPrefs || hasForm);
 
     setBusy(true);
     try {
@@ -214,6 +254,8 @@ export function CreateCalendarTab() {
             calendarThemePreference: result.calendarThemePreference,
             membersAdded: result.membersAdded,
             openingHoursSaved: result.openingHoursSaved,
+            appointmentFormSaved: result.appointmentFormSaved,
+            appointmentFormFields: result.appointmentFormFields,
             calendar: getSnapshot(result.calendar),
             apiResponse: result.apiResponse,
           }
@@ -279,6 +321,17 @@ export function CreateCalendarTab() {
             <code>Recipient</code> scalar)
           </p>
           <pre className="pre-block">{JSON.stringify(inAppPreferencePreview, null, 2)}</pre>
+        </div>
+      ) : null}
+
+      {formFieldsPreview?.length ? (
+        <div className="card">
+          <h2>Form fields preview</h2>
+          <p className="muted small">
+            <code>appointmentUserDefinedFields</code> on the calendar → transformed for{" "}
+            <code>POST /CustomField/Form/Save</code> after create (uses new <code>calendarId</code>).
+          </p>
+          <pre className="pre-block">{JSON.stringify(formFieldsPreview, null, 2)}</pre>
         </div>
       ) : null}
 

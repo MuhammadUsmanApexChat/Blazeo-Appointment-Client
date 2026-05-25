@@ -422,7 +422,8 @@ export function FetchCalendarTab() {
           Runs <code>fetchCalendarDetails(calendarId)</code> (default <code>viewFormat: &quot;frontend&quot;</code>).
           JSON matches the portal edit payload: <code>openingHours</code> with <code>days[]</code>,{" "}
           <code>members[].id</code>, <code>appointmentReminders</code>, theme fields,{" "}
-          <code>appointmentUserDefinedFields</code>, <code>appointmentLocations</code>. Legacy enriched shape:{" "}
+          <code>appointmentUserDefinedFields</code> (from <code>GET /CustomField/Form/Get</code>),{" "}
+          <code>appointmentLocations</code>. Legacy enriched shape:{" "}
           <code>viewFormat: &quot;unified&quot;</code>. Debug: non-enumerable <code>_enriched</code>, <code>_meta</code>. Plus a{" "}
           <code>participants</code> array where each participant may include nested <code>openingHours</code>. (
           <code>fetchCalendarBundle(calendarId)</code> returns the same shape.)

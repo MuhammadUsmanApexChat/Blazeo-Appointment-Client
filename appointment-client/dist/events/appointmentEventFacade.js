@@ -1,6 +1,6 @@
 import { EventModel, configure } from "@blazeo.com/calendar-client";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
-import { mapAppointmentToEventSnapshot } from "./mapAppointmentToEventSnapshot.js";
+import { mapAppointmentEventToPlain, mapAppointmentToEventSnapshot, } from "./mapAppointmentToEventSnapshot.js";
 function isFailureStatus(res) {
     return res.status !== "success" && res.status !== "Success";
 }
@@ -33,7 +33,11 @@ async function runEventMutation(input, mode, options) {
         }
         const apiRes = await EventModel.createEvent(snapshot, offset);
         if (apiRes?.eventId) {
-            return { ok: true, apiResponse: apiRes };
+            return {
+                ok: true,
+                event: apiRes,
+                apiResponse: mapAppointmentEventToPlain(apiRes),
+            };
         }
         if (isFailureStatus(apiRes)) {
             const msg = apiRes.message ??
@@ -41,7 +45,11 @@ async function runEventMutation(input, mode, options) {
                 JSON.stringify(apiRes);
             return { ok: false, error: msg || "Event create failed", apiResponse: apiRes };
         }
-        return { ok: true, apiResponse: apiRes };
+        return {
+            ok: true,
+            event: apiRes,
+            apiResponse: mapAppointmentEventToPlain(apiRes) ?? apiRes,
+        };
     }
     const eventIdForApi = snapshot.eventId;
     if (!eventIdForApi || eventIdForApi === "new") {
@@ -68,7 +76,11 @@ async function runEventMutation(input, mode, options) {
             JSON.stringify(apiRes);
         return { ok: false, error: msg || "Event reschedule failed", apiResponse: apiRes };
     }
-    return { ok: true, event: eventNode, apiResponse: apiRes };
+    return {
+        ok: true,
+        event: eventNode,
+        apiResponse: mapAppointmentEventToPlain(eventNode),
+    };
 }
 /**
  * Creates an appointment event — `Event.create()` → `POST /event/create`

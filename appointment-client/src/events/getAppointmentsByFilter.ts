@@ -1,5 +1,6 @@
 import { EventModel, LeadModel } from "@blazeo.com/calendar-client";
 import { getCalendarsByCompany } from "../calendar/getCalendarsByCompany.js";
+import { pickEventLocationFromEvent } from "./mapAppointmentEventLocation.js";
 import moment from "moment";
 
 /**
@@ -65,6 +66,9 @@ export async function getAppointmentsByFilter(
 
       const calendarId = event.calendarId;
       const participantId = event.participantId;
+      const { calendarLocationId, customLocation } = pickEventLocationFromEvent(
+        rawEvent !== event ? { ...event, ...rawEvent } : event
+      );
 
       return {
         id: event.eventId, // UUID as per feedback
@@ -82,8 +86,11 @@ export async function getAppointmentsByFilter(
         startDate: event.startDate ? moment(event.startDate).toISOString() : null,
         endDate: event.endDate ? moment(event.endDate).toISOString() : null,
         timeZone: event.timeZone || "Pakistan Standard Time",
-        meetingLocationType: 1,
-        customMeetingLocation: null,
+        calendarLocationId,
+        customLocationId: calendarLocationId,
+        customLocation,
+        meetingLocationType: customLocation ? 3 : calendarLocationId ? 0 : 1,
+        customMeetingLocation: customLocation,
         __typename: "Appointment",
         // Keep raw fields for potential fallback or reference
         _raw: event

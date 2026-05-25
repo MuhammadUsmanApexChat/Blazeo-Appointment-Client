@@ -3,6 +3,7 @@ import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { unwrapCalendarGetData, pickOpeningHoursArrayFromCalendarPayload, normalizeParticipantOpeningHoursResponse, } from "./fetchCalendarWithOpeningHours.js";
 import { buildUnifiedCalendarView } from "./buildUnifiedCalendarView.js";
 import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
+import { fetchCalendarAppointmentForm } from "./fetchCalendarForm.js";
 import { emptyCalendarPreferencesBundle, fetchCalendarPreferences, } from "../preference/fetchCalendarPreferences.js";
 import { mergePreferencesIntoCalendarView } from "../preference/mergePreferencesIntoCalendarView.js";
 import { mapToFrontendCalendarView, } from "./mapToFrontendCalendarView.js";
@@ -91,9 +92,10 @@ function unwrapModelList(raw) {
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
  */
 export async function fetchCalendarDetails(calendarId, options = {}) {
-    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, viewFormat = "frontend", baseUrl: optBaseUrl, consumer: optConsumer, } = options;
+    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, includeFormFields: includeFormFieldsOpt, viewFormat = "frontend", baseUrl: optBaseUrl, consumer: optConsumer, } = options;
     const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
     const includeLocations = includeLocationsOpt ?? includePreferences;
+    const includeFormFields = includeFormFieldsOpt ?? includeUnifiedCalendarView;
     const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
     if (!conn.ok) {
         return {
@@ -164,13 +166,20 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
             consumer: conn.consumer,
         })
         : Promise.resolve(null);
-    const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw, preferencesBundle, appointmentLocations,] = await Promise.all([
+    const formFieldsPromise = includeFormFields
+        ? fetchCalendarAppointmentForm(calendarId, {
+            baseUrl: conn.baseUrl,
+            consumer: conn.consumer,
+        })
+        : Promise.resolve(null);
+    const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw, preferencesBundle, appointmentLocations, appointmentUserDefinedFields,] = await Promise.all([
         cal.getParticipants(),
         participantsViaGetPromise,
         fetchParticipantsInfo ? cal.getParticipantsInfo() : Promise.resolve(null),
         fetchAllHours ? cal.getAllParticipantOpeningHours() : Promise.resolve(null),
         preferencesPromise,
         locationsPromise,
+        formFieldsPromise,
     ]);
     const participantList = mergeParticipantSnapshots(unwrapModelList(participantsRaw), unwrapModelList(participantsViaGet));
     const infoList = unwrapModelList(participantsInfoRaw);
@@ -254,6 +263,11 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         const prefs = preferencesBundle ?? emptyCalendarPreferencesBundle();
         finalView = mergePreferencesIntoCalendarView(finalView, prefs);
     }
+    if (includeFormFields &&
+        Array.isArray(appointmentUserDefinedFields) &&
+        appointmentUserDefinedFields.length > 0) {
+        finalView.appointmentUserDefinedFields = appointmentUserDefinedFields;
+    }
     let responseView = finalView;
     if (viewFormat === "frontend") {
         responseView = mapToFrontendCalendarView(finalView, payload, openingHoursForUnifiedView, Array.isArray(appointmentLocations) ? appointmentLocations : []);
@@ -281,6 +295,10 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
                 locationsIncluded: includeLocations,
                 appointmentLocationCount: Array.isArray(appointmentLocations)
                     ? appointmentLocations.length
+                    : 0,
+                formFieldsIncluded: includeFormFields,
+                appointmentUserDefinedFieldCount: Array.isArray(appointmentUserDefinedFields)
+                    ? appointmentUserDefinedFields.length
                     : 0,
             },
             enumerable: false

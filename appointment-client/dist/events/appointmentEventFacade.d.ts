@@ -14,19 +14,14 @@ export declare function createAppointmentEventAsync(input: any, options?: any): 
     apiResponse?: undefined;
 } | {
     ok: boolean;
-    apiResponse: any;
+    event: any;
+    apiResponse: Record<string, unknown>;
     error?: undefined;
-    event?: undefined;
 } | {
     ok: boolean;
     error: any;
     apiResponse: any;
     event?: undefined;
-} | {
-    ok: boolean;
-    event: any;
-    apiResponse: any;
-    error?: undefined;
 }>;
 /**
  * Reschedules an appointment — `Event.reschedule()` → `POST /event/reschedule`
@@ -44,19 +39,14 @@ export declare function rescheduleAppointmentEventAsync(input: any, options?: an
     apiResponse?: undefined;
 } | {
     ok: boolean;
-    apiResponse: any;
+    event: any;
+    apiResponse: Record<string, unknown>;
     error?: undefined;
-    event?: undefined;
 } | {
     ok: boolean;
     error: any;
     apiResponse: any;
     event?: undefined;
-} | {
-    ok: boolean;
-    event: any;
-    apiResponse: any;
-    error?: undefined;
 }>;
 /**
  * Cancels an appointment — `EventModel.cancel` → `GET /event/cancel`
