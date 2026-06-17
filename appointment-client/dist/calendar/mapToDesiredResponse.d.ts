@@ -29,6 +29,7 @@ export declare function mapToDesiredCalendarResponse(payload: any, openingHours?
     members: {
         id: any;
         name: any;
+        alias: any;
         email: any;
         status: any;
         __typename: string;

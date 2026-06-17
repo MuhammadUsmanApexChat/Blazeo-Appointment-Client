@@ -80,24 +80,25 @@ export function appointmentInputHasLocation(input: any): boolean {
   return Boolean(calendarLocationId || customLocation);
 }
 
+function normalizeLocationId(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed !== "" ? trimmed : null;
+}
+
+function normalizeCustomLocation(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed !== "" ? trimmed : null;
+}
+
 /** Normalize API / MST event to plain location fields for responses. */
 export function pickEventLocationFromEvent(event: any): ResolvedEventLocation {
   if (event == null || typeof event !== "object") {
     return { calendarLocationId: null, customLocation: null };
   }
-  const calendarLocationId = pick<string>(
-    event,
-    "calendarLocationId",
-    "CalendarLocationId",
-    "calendar_location_id",
-    "customLocationId",
-    "CustomLocationId",
-    "savedLocationId",
-    "SavedLocationId",
-    "appointmentLocationId",
-    "AppointmentLocationId"
-  );
-  const customLocation = pick<string>(
+
+  const customRaw = pick<string>(
     event,
     "customLocation",
     "CustomLocation",
@@ -105,14 +106,67 @@ export function pickEventLocationFromEvent(event: any): ResolvedEventLocation {
     "customMeetingLocation",
     "CustomMeetingLocation"
   );
-  return {
-    calendarLocationId:
-      calendarLocationId != null && String(calendarLocationId).trim() !== ""
-        ? String(calendarLocationId).trim()
-        : null,
-    customLocation:
-      customLocation != null && String(customLocation).trim() !== ""
-        ? String(customLocation).trim()
-        : null,
-  };
+  const calendarLocRaw = pick<string>(
+    event,
+    "calendarLocationId",
+    "CalendarLocationId",
+    "calendar_location_id",
+    "locationId",
+    "LocationId",
+    "customLocationId",
+    "CustomLocationId",
+    "savedLocationId",
+    "SavedLocationId",
+    "appointmentLocationId",
+    "AppointmentLocationId"
+  );
+
+  const customTrimmed = normalizeCustomLocation(customRaw);
+  const calendarLocTrimmed = normalizeLocationId(calendarLocRaw);
+
+  if (customTrimmed) {
+    return { calendarLocationId: null, customLocation: customTrimmed };
+  }
+  if (calendarLocTrimmed) {
+    return { calendarLocationId: calendarLocTrimmed, customLocation: null };
+  }
+  return { calendarLocationId: null, customLocation: null };
+}
+
+/** Merge location fields from event model, raw GET payload, and optional custom data. */
+export function pickEventLocationFromSources(...sources: unknown[]): ResolvedEventLocation {
+  for (const source of sources) {
+    const loc = pickEventLocationFromEvent(source);
+    if (loc.calendarLocationId || loc.customLocation) return loc;
+  }
+  return { calendarLocationId: null, customLocation: null };
+}
+
+/** Try to read `calendarLocationId` from `/event/customdata/get` payload shapes. */
+export function pickEventLocationFromCustomData(customData: unknown): ResolvedEventLocation {
+  if (customData == null) return { calendarLocationId: null, customLocation: null };
+
+  let row: unknown = customData;
+  if (typeof customData === "string") {
+    try {
+      row = JSON.parse(customData);
+    } catch {
+      return { calendarLocationId: null, customLocation: null };
+    }
+  }
+
+  const direct = pickEventLocationFromEvent(row);
+  if (direct.calendarLocationId || direct.customLocation) return direct;
+
+  if (row != null && typeof row === "object") {
+    const obj = row as Record<string, unknown>;
+    for (const value of Object.values(obj)) {
+      if (value != null && typeof value === "object") {
+        const nested = pickEventLocationFromEvent(value);
+        if (nested.calendarLocationId || nested.customLocation) return nested;
+      }
+    }
+  }
+
+  return { calendarLocationId: null, customLocation: null };
 }

@@ -107,3 +107,35 @@ export async function saveCalendarLocationApi(
   }
   return null;
 }
+
+/**
+ * `GET /Calendar/Location/GetById?calendar_location_id=…`
+ * Same endpoint as `CalendarLocationModel.getById` in `@blazeo.com/calendar-client`.
+ */
+export async function getCalendarLocationById(
+  calendarLocationId: string,
+  connection: BlazeoPreferenceConnection = {}
+): Promise<Record<string, unknown> | null> {
+  const id = String(calendarLocationId ?? "").trim();
+  if (!id) return null;
+
+  const res = await blazeoRequest("/Calendar/Location/GetById", {
+    query: { calendar_location_id: id },
+    connection,
+  });
+  if (res.status === "success" && res.data && typeof res.data === "object") {
+    return res.data as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** `GET /Calendar/Location/Remove?calendar_location_id=…`. */
+export async function removeCalendarLocationApi(
+  calendarLocationId: string,
+  connection: BlazeoPreferenceConnection = {}
+): Promise<ApiEnvelope> {
+  return blazeoRequest("/Calendar/Location/Remove", {
+    query: { calendar_location_id: calendarLocationId },
+    connection,
+  });
+}

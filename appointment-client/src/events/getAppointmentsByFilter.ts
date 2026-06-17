@@ -1,20 +1,41 @@
 import { EventModel, LeadModel } from "@blazeo.com/calendar-client";
 import { getCalendarsByCompany } from "../calendar/getCalendarsByCompany.js";
+import { preloadCalendarLocationsMap } from "../calendar/fetchCalendarLocationById.js";
 import { pickEventLocationFromEvent } from "./mapAppointmentEventLocation.js";
+import { enrichAppointmentEventsWithCalendarLocations } from "./enrichAppointmentCalendarLocation.js";
+import {
+  backfillEventLocationIds,
+  eventSearchResultToClientRow,
+} from "./backfillEventLocationIds.js";
 import moment from "moment";
 
+export type GetAppointmentsByFilterOptions = {
+  baseUrl?: string;
+  consumer?: string;
+  leadId?: string;
+  /** When false, skips lead lookup by visitor email (faster). Default true. */
+  resolveLeadIds?: boolean;
+  /** When false, skips per-event GET /event/get for missing location ids. Default true. */
+  backfillEventLocation?: boolean;
+  /** When false, skips calendarLocation detail attachment. Default true. */
+  includeCalendarLocation?: boolean;
+  [key: string]: unknown;
+};
+
 /**
- * High-level method to fetch appointments with enriched mapping.
- * Resolves names for organizers and calendars, and attempts to resolve missing leadIds.
+ * Fetch appointments with enriched mapping (organizer/calendar names, leadId, calendarLocation).
+ * Parallelizes independent API work and scopes calendar/member fetches to calendars in the result set.
  */
 export async function getAppointmentsByFilter(
   companyKey: string,
   startDateFrom: string,
   startDateTo: string,
-  opts: any = {}
+  opts: GetAppointmentsByFilterOptions = {}
 ) {
-  // 1. Fetch raw events
-  // Cast to any because getByDateRangeWithFilters is missing from some .d.ts versions but present in .js
+  const resolveLeadIds = opts.resolveLeadIds !== false;
+  const backfillEventLocation = opts.backfillEventLocation !== false;
+  const includeCalendarLocation = opts.includeCalendarLocation !== false;
+
   const response: any = await (EventModel as any).getByDateRangeWithFilters(
     companyKey,
     startDateFrom,
@@ -29,9 +50,36 @@ export async function getAppointmentsByFilter(
     return { events: [], totalCount: 0 };
   }
 
-  // 2. Fetch company data for name resolution (Calendars & Participants)
-  const enrichedCalendars = await getCalendarsByCompany(companyKey);
-  
+  const calendarIdsInScope = [
+    ...new Set(
+      events
+        .map((e: any) => String(e?.calendarId ?? "").trim())
+        .filter((id: string) => id.length > 0)
+    ),
+  ] as string[];
+
+  let clientRows = events.map((event: unknown) => eventSearchResultToClientRow(event));
+
+  const calendarOpts = {
+    baseUrl: opts.baseUrl,
+    consumer: opts.consumer,
+    includePreferences: false,
+    includeLocations: false,
+    calendarIds: calendarIdsInScope,
+  };
+
+  const [backfilledRows, enrichedCalendars, locationCache] = await Promise.all([
+    backfillEventLocation
+      ? backfillEventLocationIds(clientRows, opts)
+      : Promise.resolve(clientRows),
+    getCalendarsByCompany(companyKey, calendarOpts),
+    includeCalendarLocation
+      ? preloadCalendarLocationsMap(calendarIdsInScope, opts)
+      : Promise.resolve(new Map()),
+  ]);
+
+  clientRows = backfilledRows;
+
   const calendarMap = new Map<string, string>();
   const participantMap = new Map<string, string>();
 
@@ -44,43 +92,47 @@ export async function getAppointmentsByFilter(
     }
   });
 
-  // 3. Map events to the desired response schema
+  const leadCache = new Map<string, string | null>();
+
   const mappedEvents = await Promise.all(
-    events.map(async (event: any) => {
-      // Resolve leadId if missing
-      // Note: event properties might be uppercase depending on API version, mapEventFromApi usually handles this
-      // but let's be defensive.
-      const rawEvent = (event as any)._raw || event;
-      let resolvedLeadId = event.leadId ?? rawEvent.lead_id ?? opts.leadId ?? null;
-      
-      if (!resolvedLeadId && event.visitorEmail) {
-        try {
-          const lead: any = await LeadModel.getByEmail(event.visitorEmail, companyKey);
-          if (lead) {
-            resolvedLeadId = lead.leadId;
+    events.map(async (event: any, index: number) => {
+      const clientRow = clientRows[index] ?? {};
+      let resolvedLeadId = event.leadId ?? opts.leadId ?? null;
+
+      if (resolveLeadIds && !resolvedLeadId && event.visitorEmail) {
+        const emailKey = String(event.visitorEmail).trim().toLowerCase();
+        if (leadCache.has(emailKey)) {
+          resolvedLeadId = leadCache.get(emailKey) ?? null;
+        } else {
+          try {
+            const lead: any = await LeadModel.getByEmail(event.visitorEmail, companyKey);
+            resolvedLeadId = lead?.leadId ?? null;
+          } catch (err) {
+            console.warn(
+              `[getAppointmentsByFilter] Failed to resolve lead for ${event.visitorEmail}:`,
+              err
+            );
+            resolvedLeadId = null;
           }
-        } catch (err) {
-          console.warn(`[getAppointmentsByFilter] Failed to resolve lead for ${event.visitorEmail}:`, err);
+          leadCache.set(emailKey, resolvedLeadId);
         }
       }
 
       const calendarId = event.calendarId;
       const participantId = event.participantId;
-      const { calendarLocationId, customLocation } = pickEventLocationFromEvent(
-        rawEvent !== event ? { ...event, ...rawEvent } : event
-      );
+      const { calendarLocationId, customLocation } = pickEventLocationFromEvent(clientRow);
 
       return {
-        id: event.eventId, // UUID as per feedback
+        id: event.eventId,
         appointmentId: event.eventId,
         title: event.title || "Appointment",
         organizer: participantMap.get(participantId) || "Member",
         guest: event.visitorName || "Guest",
         serviceType: calendarMap.get(calendarId) || "Calendar",
         status: event.attendeeStatus ?? 1,
-        calendarId: calendarId, // UUID
-        memberId: participantId, // UUID
-        participantId: participantId, // UUID
+        calendarId,
+        memberId: participantId,
+        participantId,
         leadId: resolvedLeadId,
         notes: event.description || "",
         startDate: event.startDate ? moment(event.startDate).toISOString() : null,
@@ -92,14 +144,20 @@ export async function getAppointmentsByFilter(
         meetingLocationType: customLocation ? 3 : calendarLocationId ? 0 : 1,
         customMeetingLocation: customLocation,
         __typename: "Appointment",
-        // Keep raw fields for potential fallback or reference
-        _raw: event
       };
     })
   );
 
+  const eventsOut = includeCalendarLocation
+    ? await enrichAppointmentEventsWithCalendarLocations(
+        mappedEvents,
+        opts,
+        locationCache
+      )
+    : mappedEvents;
+
   return {
-    events: mappedEvents,
-    totalCount
+    events: eventsOut,
+    totalCount,
   };
 }

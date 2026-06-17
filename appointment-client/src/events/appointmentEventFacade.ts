@@ -46,10 +46,11 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
     const apiRes: any = await (EventModel as any).createEvent(snapshot, offset);
 
     if (apiRes?.eventId) {
+      const apiResponse = mapAppointmentEventToPlain(apiRes);
       return {
         ok: true,
         event: apiRes,
-        apiResponse: mapAppointmentEventToPlain(apiRes),
+        apiResponse,
       };
     }
 
@@ -61,10 +62,12 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
       return { ok: false, error: msg || "Event create failed", apiResponse: apiRes };
     }
 
+    const apiResponse =
+      mapAppointmentEventToPlain(apiRes) ?? (apiRes as Record<string, unknown>);
     return {
       ok: true,
       event: apiRes,
-      apiResponse: mapAppointmentEventToPlain(apiRes) ?? apiRes,
+      apiResponse,
     };
   }
 
@@ -99,10 +102,11 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
     return { ok: false, error: msg || "Event reschedule failed", apiResponse: apiRes };
   }
 
+  const apiResponse = mapAppointmentEventToPlain(eventNode);
   return {
     ok: true,
     event: eventNode,
-    apiResponse: mapAppointmentEventToPlain(eventNode),
+    apiResponse,
   };
 }
 

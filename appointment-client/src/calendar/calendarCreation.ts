@@ -60,12 +60,18 @@ async function saveRelationsAfterCalendarSave(
   calendar: any,
   calendarIdStr: string,
   options: any,
-  baseSuccess: any
+  baseSuccess: any,
+  replaceLocationsOnSave = false
 ) {
   if (options.localOnly) {
     return baseSuccess;
   }
-  return saveCalendarRelationsAfterSave(calendar, calendarIdStr, options, baseSuccess);
+  return saveCalendarRelationsAfterSave(
+    calendar,
+    calendarIdStr,
+    { ...options, replaceLocationsOnSave },
+    baseSuccess
+  );
 }
 
 export function calendarPayloadHasRelations(calendar: any): boolean {
@@ -121,7 +127,8 @@ async function runMembersAndOpeningHoursAfterCalendarSave(
   calendar: any,
   calendarNode: any,
   baseSuccess: any,
-  options: any = {}
+  options: any = {},
+  replaceLocationsOnSave = false
 ) {
   const calendarIdStr = effectiveCalendarId(calendarNode, calendar);
   if (!calendarIdStr) {
@@ -262,7 +269,8 @@ async function runMembersAndOpeningHoursAfterCalendarSave(
       ...baseSuccess,
       membersAdded,
       openingHoursSaved,
-    }
+    },
+    replaceLocationsOnSave
   );
   return withPrefs;
 }
@@ -287,7 +295,8 @@ export async function updateCalendarWithRelationsAsync(calendar: any, options: a
       calendar,
       calendarIdStr,
       options,
-      { ...r, membersAdded: 0, openingHoursSaved: 0 }
+      { ...r, membersAdded: 0, openingHoursSaved: 0 },
+      true
     );
     return withPrefs;
   }
@@ -301,7 +310,7 @@ export async function updateCalendarWithRelationsAsync(calendar: any, options: a
   const updated = await updateCalendarAsync(calendar, options);
   if (!updated.ok) return updated;
 
-  return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated, options);
+  return runMembersAndOpeningHoursAfterCalendarSave(calendar, updated.calendar, updated, options, true);
 }
 
 /**

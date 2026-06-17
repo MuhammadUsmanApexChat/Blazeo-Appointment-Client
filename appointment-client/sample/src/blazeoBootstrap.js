@@ -14,8 +14,7 @@ function normalizeBase(u) {
   return t.replace(/\/+$/, "");
 }
 
-export function bootstrapBlazeoClient() {
-  debugger;
+export function bootstrapBlazeoClient() {  
   applyBlazeoClientConfig();
 
   const envBase = normalizeBase(import.meta.env.VITE_BLAZEO_BASE_URL ?? "");

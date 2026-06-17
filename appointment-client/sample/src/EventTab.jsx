@@ -4,7 +4,9 @@ import {
   createAppointmentEventAsync,
   ensureBlazeoHttpReady,
   EventModel,
+  getEventById,
   getAppointmentsByFilter,
+  searchEventsByCompanyKey,
   rescheduleAppointmentEventAsync,
 } from "appointment-client";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
@@ -93,17 +95,10 @@ function resultToJson(result) {
   if (!result) return "";
   if (result.ok && result.event && isStateTreeNode(result.event)) {
     const snap = getSnapshot(result.event);
-    return JSON.stringify(
-      {
-        ok: true,
-        eventSnapshot: snap,
-        calendarLocationId: snap.calendarLocationId ?? null,
-        customLocation: snap.customLocation ?? null,
-        apiResponse: result.apiResponse ?? null,
-      },
-      null,
-      2
-    );
+    return JSON.stringify({ ok: true, event: snap }, null, 2);
+  }
+  if (result.ok && result.event) {
+    return JSON.stringify({ ok: true, event: result.event }, null, 2);
   }
   return JSON.stringify(result, null, 2);
 }
@@ -158,6 +153,7 @@ export function EventTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [output, setOutput] = useState("");
+  const [getEventId, setGetEventId] = useState("");
 
   const opts = useMemo(() => ({ offsetMinutes: Number(offsetMinutes) || 0 }), [offsetMinutes]);
   const eventOpts = useMemo(() => ({ ...opts, ...connectionOpts }), [opts, connectionOpts]);
@@ -250,6 +246,33 @@ export function EventTab() {
     }
   }
 
+  async function handleGetEventById(e) {
+    e.preventDefault();
+    setError("");
+    setOutput("");
+    const id = getEventId.trim();
+    if (!id) return setError("Enter eventId.");
+    if (!ensureBase()) return;
+    configureBlazeoFromEffective(effective);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
+
+    setBusy(true);
+    try {
+      const res = await getEventById(id, {
+        ...connectionOpts,
+        baseUrl: effective.baseUrl,
+        ...(effective.consumer ? { consumer: effective.consumer } : {}),
+      });
+      setOutput(JSON.stringify(res, null, 2));
+      if (!res.ok) setError(mapBlazeoDemoError(res.error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSearchByDateRange(e) {
     e.preventDefault();
     setError("");
@@ -271,18 +294,20 @@ export function EventTab() {
 
     setBusy(true);
     try {
-      const res = await EventModel.getByDateRangeWithFilters(
+      const res = await searchEventsByCompanyKey(
         companyKey,
         startDateFrom,
         startDateTo,
-        optsFromJson
+        {
+          ...optsFromJson,
+          ...connectionOpts,
+          baseUrl: effective.baseUrl,
+          ...(effective.consumer ? { consumer: effective.consumer } : {}),
+        }
       );
-
-      const events = (res?.events ?? []).map((e) =>
-        isStateTreeNode(e) ? getSnapshot(e) : (e?.toJSON?.() ?? e)
-      );
-      const totalCount = res?.totalCount ?? events.length;
-      setOutput(JSON.stringify({ totalCount, events }, null, 2));
+      setOutput(JSON.stringify(res, null, 2));
+    } catch (err) {
+      setError(mapBlazeoDemoError(err instanceof Error ? err.message : String(err)));
     } finally {
       setBusy(false);
     }
@@ -313,7 +338,12 @@ export function EventTab() {
         companyKey,
         startDateFrom,
         startDateTo,
-        optsFromJson
+        {
+          ...optsFromJson,
+          ...connectionOpts,
+          baseUrl: effective.baseUrl,
+          ...(effective.consumer ? { consumer: effective.consumer } : {}),
+        }
       );
 
       setOutput(JSON.stringify(res, null, 2));
@@ -345,9 +375,9 @@ export function EventTab() {
       <div className="card">
         <h2>Search events (date range + filters)</h2>
         <p className="muted small">
-          Calls <code>EventModel.getByDateRangeWithFilters</code> →
-          <code> GET /event/search/daterange/get</code> (company scope). Offset header comes from the{" "}
-          <code>offset</code> field above.
+          <strong>Search events</strong> — one API call (fast). <strong>Search appointments</strong> — richer
+          data (names, leadId, <code>calendarLocation</code>); runs extra calls in parallel and only for
+          calendars in your result set.
         </p>
         <form onSubmit={handleSearchByDateRange} className="form">
           <label className="form__label">
@@ -391,13 +421,35 @@ export function EventTab() {
             />
           </label>
           <div className="connection-card__row">
-            <button type="button" className="btn btn--secondary" onClick={handleSearchByDateRange} disabled={busy}>
-              {busy ? "Loading…" : "Raw Search"}
+            <button type="button" className="btn btn--primary" onClick={handleSearchByDateRange} disabled={busy}>
+              {busy ? "Loading…" : "Search events"}
             </button>
-            <button type="button" className="btn btn--primary" onClick={handleEnrichedSearch} disabled={busy}>
-              {busy ? "Loading…" : "Enriched Search (New)"}
+            <button type="button" className="btn btn--secondary" onClick={handleEnrichedSearch} disabled={busy}>
+              {busy ? "Loading…" : "Search appointments"}
             </button>
           </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Get event by eventId</h2>
+        <p className="muted small">
+          Single <code>GET /event/get</code> — no extra location or custom-data calls.
+        </p>
+        <form onSubmit={handleGetEventById} className="form">
+          <label className="form__label">
+            <span>eventId</span>
+            <input
+              className="form__input"
+              value={getEventId}
+              onChange={(e) => setGetEventId(e.target.value)}
+              placeholder="event-id"
+              autoComplete="off"
+            />
+          </label>
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            {busy ? "Loading…" : "Get event"}
+          </button>
         </form>
       </div>
 

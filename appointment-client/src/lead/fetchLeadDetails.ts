@@ -89,18 +89,41 @@ export async function fetchLeadByEmail(
 /**
  * Paged list: `LeadModel.getByCompany` → `GET /lead/company/get`.
  */
+function extractLeadModelsFromCompanyResult(result: unknown): unknown[] {
+  if (result == null) return [];
+  if (Array.isArray(result)) return result;
+  if (typeof result === "object") {
+    const leads = (result as { leads?: unknown }).leads;
+    if (Array.isArray(leads)) return leads;
+  }
+  return [];
+}
+
+function extractTotalCountFromCompanyResult(result: unknown, fallback: number): number {
+  if (result == null || typeof result !== "object" || Array.isArray(result)) return fallback;
+  const raw = (result as { totalCount?: unknown }).totalCount;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export async function fetchLeadsByCompany(
   companyKey: string,
   listOpts: LeadsByCompanyListOpts = {},
   connection: BlazeoLeadConnection = {}
 ): Promise<
-  | { ok: true; leads: Record<string, unknown>[] }
+  | { ok: true; leads: Record<string, unknown>[]; totalCount: number }
   | { ok: false; reason: "missing_base_url"; detail: string }
 > {
   const ready = ensureBlazeoHttpReady(connection);
   if (!ready.ok) {
     return { ok: false, reason: "missing_base_url", detail: ready.error };
   }
-  const models = await LeadModel.getByCompany(String(companyKey).trim(), listOpts);
-  return { ok: true, leads: leadsToPlain(models ?? []) };
+  const result = await LeadModel.getByCompany(String(companyKey).trim(), listOpts);
+  const models = extractLeadModelsFromCompanyResult(result);
+  const leads = leadsToPlain(models);
+  return {
+    ok: true,
+    leads,
+    totalCount: extractTotalCountFromCompanyResult(result, leads.length),
+  };
 }

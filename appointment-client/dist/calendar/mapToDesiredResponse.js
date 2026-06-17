@@ -16,7 +16,8 @@ export function mapToDesiredCalendarResponse(payload, openingHours = [], members
     // Map members with typename
     const mappedMembers = members.map(m => ({
         id: m.id ?? pick(m, "id", "Id"),
-        name: m.name ?? pick(m, "name", "Name", "alias", "Alias"),
+        name: m.name ?? pick(m, "name", "Name", "alias", "Alias") ?? "",
+        alias: m.alias ?? pick(m, "alias", "Alias") ?? "",
         email: m.email ?? pick(m, "email", "Email") ?? null,
         status: m.status ?? pick(m, "status", "Status") ?? 0,
         __typename: "Member"

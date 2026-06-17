@@ -193,7 +193,7 @@ export function LeadTab() {
       setNote(
         `LeadModel.getByCompany → GET /lead/company/get (${res.leads.length} row(s), MST snapshots as plain objects).`
       );
-      setOutput(toDisplayJson({ leads: res.leads }));
+      setOutput(toDisplayJson({ totalCount: res.totalCount, leads: res.leads }));
     } catch (err) {
       setError(explainFetchFailure(err, effective.baseUrl));
     } finally {

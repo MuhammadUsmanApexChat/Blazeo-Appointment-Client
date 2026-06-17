@@ -26,6 +26,8 @@ export type FrontendCalendarOpeningHour = {
 
 export type FrontendCalendarMember = {
   id: string;
+  name?: string | null;
+  alias?: string | null;
 };
 
 export type FrontendCalendarView = {
@@ -206,9 +208,13 @@ export function mapToFrontendCalendarView(
     pick<string>(themeFromView, "logoUrl", "LogoUrl") ??
     null;
 
-  const members = (Array.isArray(view.members) ? view.members : []).map((m: any) => ({
-    id: String(m?.id ?? pick(m, "id", "Id", "participantId", "ParticipantId") ?? "").trim(),
-  })).filter((m) => m.id);
+  const members = (Array.isArray(view.members) ? view.members : [])
+    .map((m: any) => ({
+      id: String(m?.id ?? pick(m, "id", "Id", "participantId", "ParticipantId") ?? "").trim(),
+      name: (pick(m, "name", "Name") ?? "") as string,
+      alias: (pick(m, "alias", "Alias") ?? "") as string,
+    }))
+    .filter((m) => m.id);
 
   return {
     ...(calendarId ? { calendarId } : {}),

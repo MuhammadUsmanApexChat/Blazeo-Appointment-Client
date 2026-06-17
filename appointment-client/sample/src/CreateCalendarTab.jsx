@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   calendarPayloadHasEventReminders,
   calendarPayloadHasFormFields,
+  calendarPayloadHasLocations,
   calendarPayloadHasTheme,
   collectAppointmentReminders,
   createCalendarAsync,
@@ -172,6 +173,7 @@ export function CreateCalendarTab() {
     const hasInApp = (inAppPreferencePreview?.length ?? 0) > 0;
     const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
     const hasForm = (formFieldsPreview?.length ?? 0) > 0;
+    const hasLocations = parsedPayload != null && calendarPayloadHasLocations(parsedPayload);
     const relations = saveRelations
       ? "calendar + participants + opening hours"
       : "calendar body only";
@@ -187,8 +189,10 @@ export function CreateCalendarTab() {
     const form = hasForm
       ? ` · then POST /CustomField/Form/Save from appointmentUserDefinedFields (${formFieldsPreview.length} field(s))`
       : "";
-    return `Will save ${relations}${pref}${form}.`;
+    const locations = hasLocations ? " · then save appointmentLocations" : "";
+    return `Will save ${relations}${pref}${locations}${form}.`;
   }, [
+    parsedPayload,
     localOnly,
     effective.baseUrl,
     saveRelations,
@@ -226,8 +230,9 @@ export function CreateCalendarTab() {
     const hasPrefs =
       calendarPayloadHasEventReminders(payload) || calendarPayloadHasTheme(payload);
     const hasForm = calendarPayloadHasFormFields(payload);
+    const hasLocations = calendarPayloadHasLocations(payload);
     const useRelations =
-      !localOnly && (saveRelations && hasRelations || hasPrefs || hasForm);
+      !localOnly && (saveRelations && hasRelations || hasPrefs || hasForm || hasLocations);
 
     setBusy(true);
     try {

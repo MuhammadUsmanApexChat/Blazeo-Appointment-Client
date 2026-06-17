@@ -33,10 +33,11 @@ async function runEventMutation(input, mode, options) {
         }
         const apiRes = await EventModel.createEvent(snapshot, offset);
         if (apiRes?.eventId) {
+            const apiResponse = mapAppointmentEventToPlain(apiRes);
             return {
                 ok: true,
                 event: apiRes,
-                apiResponse: mapAppointmentEventToPlain(apiRes),
+                apiResponse,
             };
         }
         if (isFailureStatus(apiRes)) {
@@ -45,10 +46,11 @@ async function runEventMutation(input, mode, options) {
                 JSON.stringify(apiRes);
             return { ok: false, error: msg || "Event create failed", apiResponse: apiRes };
         }
+        const apiResponse = mapAppointmentEventToPlain(apiRes) ?? apiRes;
         return {
             ok: true,
             event: apiRes,
-            apiResponse: mapAppointmentEventToPlain(apiRes) ?? apiRes,
+            apiResponse,
         };
     }
     const eventIdForApi = snapshot.eventId;
@@ -76,10 +78,11 @@ async function runEventMutation(input, mode, options) {
             JSON.stringify(apiRes);
         return { ok: false, error: msg || "Event reschedule failed", apiResponse: apiRes };
     }
+    const apiResponse = mapAppointmentEventToPlain(eventNode);
     return {
         ok: true,
         event: eventNode,
-        apiResponse: mapAppointmentEventToPlain(eventNode),
+        apiResponse,
     };
 }
 /**

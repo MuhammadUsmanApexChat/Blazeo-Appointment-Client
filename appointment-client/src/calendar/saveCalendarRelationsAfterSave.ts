@@ -3,6 +3,11 @@ import { saveCalendarAppointmentLocations } from "./saveCalendarLocations.js";
 import { saveCalendarPreferencesAfterSave } from "../preference/saveCalendarPreferences.js";
 import type { BlazeoPreferenceConnection } from "../preference/setPreference.js";
 
+export type SaveCalendarRelationsOptions = BlazeoPreferenceConnection & {
+  /** Internal update-mode flag: replace all calendar locations before inserting payload locations. */
+  replaceLocationsOnSave?: boolean;
+};
+
 function appendLocationsResult(base: any, loc: Awaited<ReturnType<typeof saveCalendarAppointmentLocations>>) {
   if (!loc.ok) return loc;
   return {
@@ -18,7 +23,7 @@ function appendLocationsResult(base: any, loc: Awaited<ReturnType<typeof saveCal
 export async function saveCalendarRelationsAfterSave(
   calendar: any,
   calendarId: string,
-  connection: BlazeoPreferenceConnection = {},
+  connection: SaveCalendarRelationsOptions = {},
   baseSuccess: any
 ) {
   const withPrefs = await saveCalendarPreferencesAfterSave(
@@ -29,7 +34,9 @@ export async function saveCalendarRelationsAfterSave(
   );
   if (!withPrefs.ok) return withPrefs;
 
-  const loc = await saveCalendarAppointmentLocations(calendarId, calendar, connection);
+  const loc = await saveCalendarAppointmentLocations(calendarId, calendar, connection, {
+    replaceExisting: Boolean(connection.replaceLocationsOnSave),
+  });
   if (!loc.ok) {
     return {
       ok: false,

@@ -16,20 +16,15 @@ import { mapToDesiredCalendarResponse } from "./mapToDesiredResponse.js";
  */
 export async function getCalendarsByCompany(
   companyKey: string,
-  connection: {
-    baseUrl?: string;
-    consumer?: string;
-    includePreferences?: boolean;
-    includeLocations?: boolean;
-    viewFormat?: "frontend" | "unified";
-  } = {}
+  connection: any = {}
 ) {
   const {
     includePreferences = false,
     includeLocations: includeLocationsOpt,
     viewFormat = "frontend",
+    calendarIds: calendarIdsFilter,
     ...httpConnection
-  } = connection;
+  } = connection ?? {};
   const includeLocations = includeLocationsOpt ?? includePreferences;
   const ready = ensureBlazeoHttpReady(httpConnection);
   if (!ready.ok) {
@@ -37,16 +32,32 @@ export async function getCalendarsByCompany(
   }
 
   // 1. Get all calendars for the company
-  const result = await CalendarModel.getByCompany(companyKey);
+  const result = await CalendarModel.getByCompany(companyKey, httpConnection);
   const calendars = Array.isArray(result) ? result : (result as any)?.calendars ?? [];
 
   if (!calendars || calendars.length === 0) {
     return [];
   }
 
+  const filterIds = Array.isArray(calendarIdsFilter) ? calendarIdsFilter : [];
+  const filterSet =
+    filterIds.length > 0 &&
+    new Set(
+      filterIds
+        .map((id: unknown) => String(id ?? "").trim().toLowerCase())
+        .filter((id) => id.length > 0)
+    );
+
+  const calendarsToLoad = filterSet
+    ? calendars.filter((cal: any) => {
+        const id = String(cal.calendarId ?? cal.id ?? "").toLowerCase();
+        return id && filterSet.has(id);
+      })
+    : calendars;
+
   // 2. Fetch lightweight members for each calendar in parallel
   const enrichedCalendars = await Promise.all(
-    calendars.map(async (cal: any) => {
+    calendarsToLoad.map(async (cal: any) => {
       const calendarId = cal.calendarId ?? String(cal.id ?? "");
       if (!calendarId) return null;
 
@@ -70,9 +81,20 @@ export async function getCalendarsByCompany(
           const key = String(mid).toLowerCase();
 
           const resolvedEmail = i.email ?? i.Email ?? i.userSsoEmail ?? i.UserSsoEmail;
+          const resolvedAliasRaw = i.alias ?? i.Alias ?? null;
+          const resolvedNameRaw = i.name ?? i.Name ?? null;
+          const resolvedAlias =
+            resolvedAliasRaw != null && String(resolvedAliasRaw).trim() !== ""
+              ? String(resolvedAliasRaw)
+              : "";
+          const resolvedName =
+            resolvedNameRaw != null && String(resolvedNameRaw).trim() !== ""
+              ? String(resolvedNameRaw)
+              : "";
           const memberData = {
             id: mid,
-            name: i.name ?? i.Name ?? i.alias ?? i.Alias ?? "Member",
+            name: resolvedName || resolvedAlias || "",
+            alias: resolvedAlias,
             email: resolvedEmail,
             status: i.status ?? i.Status ?? 1,
           };

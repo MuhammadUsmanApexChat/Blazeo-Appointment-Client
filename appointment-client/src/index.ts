@@ -43,6 +43,20 @@ export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithR
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export {
+  getEventById,
+  type GetEventByIdResult,
+  type GetEventByIdOptions,
+} from "./events/fetchEventById.js";
+export {
+  searchEventsByCompanyKey,
+  type SearchEventsByCompanyKeyOptions,
+} from "./events/searchEventsByCompanyKey.js";
+export {
+  backfillEventLocationIds,
+  eventSearchResultToClientRow,
+} from "./events/backfillEventLocationIds.js";
+export { mapBlazeoEventToClientEvent } from "./events/mapBlazeoEventToClientEvent.js";
+export {
   mapAppointmentToEventSnapshot,
   mapAppointmentEventToPlain,
   resolveEventLocationFields,
@@ -51,6 +65,12 @@ export {
   type AppointmentEventLocationInput,
   type ResolvedEventLocation,
 } from "./events/mapAppointmentToEventSnapshot.js";
+export {
+  enrichAppointmentEventWithCalendarLocation,
+  enrichAppointmentEventsWithCalendarLocations,
+  type EnrichedAppointmentEvent,
+  type CalendarLocationDetails as AppointmentCalendarLocationDetails,
+} from "./events/enrichAppointmentCalendarLocation.js";
 export { setPreferenceAsync, type BlazeoPreferenceConnection } from "./preference/setPreference.js";
 export {
   collectAppointmentReminders,
@@ -104,23 +124,35 @@ export {
   mapApiLocationToFrontend,
   mapFrontendLocationToSavePayload,
   calendarPayloadHasLocations,
+  calendarPayloadIncludesLocations,
+  dedupeFrontendLocations,
   sortFrontendLocations,
   type FrontendAppointmentLocation,
   type CalendarLocationSavePayload,
+  type CalendarLocationDetails,
+  mapApiCalendarLocationToDetails,
 } from "./calendar/mapCalendarLocation.js";
 export {
   fetchCalendarAppointmentLocations,
   type FetchCalendarLocationsOptions,
 } from "./calendar/fetchCalendarLocations.js";
 export {
+  fetchCalendarLocationById,
+  loadCalendarLocationDetailsMap,
+} from "./calendar/fetchCalendarLocationById.js";
+export {
   saveCalendarAppointmentLocations,
+  replaceCalendarAppointmentLocations,
+  type SaveCalendarLocationsOptions,
   type SaveCalendarLocationsResult,
 } from "./calendar/saveCalendarLocations.js";
 export { saveCalendarRelationsAfterSave } from "./calendar/saveCalendarRelationsAfterSave.js";
 export { calendarPayloadHasRelations } from "./calendar/calendarCreation.js";
 export {
   getCalendarLocationsByCalendar,
+  getCalendarLocationById,
   saveCalendarLocationApi,
+  removeCalendarLocationApi,
 } from "./calendar/calendarLocationHttp.js";
 export {
   fetchLeadDetails,
@@ -200,6 +232,7 @@ import {
   removeCalendarFormField,
   removeAllCalendarFormFields,
 } from "./calendar/removeCalendarFormFields.js";
+import { replaceCalendarAppointmentLocations } from "./calendar/saveCalendarLocations.js";
 export { getCalendarsByCompany, fetchCalendarDetails, getAppointmentsByFilter };
 
 import { 
@@ -238,6 +271,8 @@ export const CalendarModel = {
   removeField: removeCalendarFormField,
   /** `GET /CustomField/RemoveAllFields?calendar_id=…` */
   removeAllFields: removeAllCalendarFormFields,
+  /** Update-mode helper: delete all locations then insert payload locations. */
+  replaceLocations: replaceCalendarAppointmentLocations,
 };
 
 export { 

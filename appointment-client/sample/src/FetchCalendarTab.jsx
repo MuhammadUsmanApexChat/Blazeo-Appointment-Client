@@ -346,13 +346,17 @@ export function FetchCalendarTab() {
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
       });
       if (result.ok) {
-        setMutateNote("updateWithRelationsAsync → POST /Calendar/Event/Update + Batch Opening Hours");
+        setMutateNote(
+          "updateWithRelationsAsync → POST /Calendar/Event/Update + replace appointmentLocations + Batch Opening Hours"
+        );
         setMutateOutput(
           JSON.stringify(
             {
               snapshot: result.calendar ? getSnapshot(result.calendar) : null,
               membersAdded: result.membersAdded,
               openingHoursSaved: result.openingHoursSaved,
+              appointmentLocationsSaved: result.appointmentLocationsSaved,
+              appointmentLocations: result.appointmentLocations,
               apiResponse: result.apiResponse ?? null,
             },
             null,
@@ -478,6 +482,10 @@ export function FetchCalendarTab() {
 
       <div className="card">
         <h2>Update calendar</h2>
+        <p className="muted small">
+          On update, <code>appointmentLocations</code> are replaced transactionally: existing rows are removed,
+          payload rows are inserted, and the final <code>GET /Calendar/Location/Get</code> result is returned.
+        </p>
         <div className="form-actions form-actions--top">
           <button
             type="button"

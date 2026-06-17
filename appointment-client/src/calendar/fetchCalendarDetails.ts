@@ -268,7 +268,7 @@ export async function fetchCalendarDetails(
     if (id) {
       mergedParticipantsMap.set(String(id).toLowerCase(), {
         id: id,
-        name: p.name ?? p.Name ?? p.alias ?? p.Alias ?? "Member",
+        name: p.name ?? p.Name ?? p.alias ?? p.Alias ?? "",
         email: p.email ?? p.Email,
         status: p.status ?? p.Status ?? 0,
       });
@@ -285,14 +285,14 @@ export async function fetchCalendarDetails(
     if (!existing) {
       mergedParticipantsMap.set(key, {
         id: id,
-        name: i.alias || i.Alias || i.name || i.Name || "Member",
+        name: i.alias || i.Alias || i.name || i.Name || "",
         email: i.email || i.Email,
         status: i.status ?? i.Status ?? (i.isApproved ? 1 : 0),
       });
     } else {
       // Enrich existing with email/name if missing
       if (!existing.email) existing.email = i.email || i.Email;
-      if (!existing.name || existing.name === "Member") {
+      if (!existing.name) {
         existing.name = i.alias || i.Alias || i.name || i.Name || existing.name;
       }
     }
@@ -306,7 +306,7 @@ export async function fetchCalendarDetails(
       if (!mergedParticipantsMap.has(key)) {
         mergedParticipantsMap.set(key, {
           id: mid,
-          name: "Member",
+          name: "",
           email: null,
           status: 0,
         });
