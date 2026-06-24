@@ -1,6 +1,9 @@
 import {
   isApiFormFieldRow,
+  mapFrontendFormFieldToApi,
   mapFrontendFormFieldsToApi,
+  normalizeApiTypeName,
+  resolveApiTypeName,
   type FrontendCalendarFormField,
 } from "../customField/mapFormFieldsToApi.js";
 
@@ -76,9 +79,136 @@ function hasCustomFieldOptions(row: Record<string, unknown>): boolean {
     Array.isArray(row.DropdownOptions) ||
     Array.isArray(row.dropdownOptions) ||
     Array.isArray(row.RadioButtonOptions) ||
+    Array.isArray(row.radioButtonOptions) ||
     Array.isArray(row.checkBoxOptions) ||
+    Array.isArray(row.checkboxOptions) ||
+    Array.isArray(row.CheckBoxOptions) ||
     Array.isArray(row.multiselectListOptions)
   );
+}
+
+function optionKeyFromValue(value: string, index: number): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+  return slug || `option_${index}`;
+}
+
+function normalizeApiOptions(options: unknown[]): { Key: string; Value: string }[] {
+  return options.map((raw, index) => {
+    const row =
+      raw != null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const value = String(
+      row.Value ?? row.value ?? row.Label ?? row.label ?? row.Text ?? row.text ?? ""
+    );
+    const key = String(row.Key ?? row.key ?? optionKeyFromValue(value, index));
+    return { Key: key, Value: value };
+  });
+}
+
+function pickApiOptions(src: Record<string, unknown>): {
+  DropdownOptions?: { Key: string; Value: string }[];
+  RadioButtonOptions?: { Key: string; Value: string }[];
+  checkBoxOptions?: { Key: string; Value: string }[];
+  multiselectListOptions?: { Key: string; Value: string }[];
+} {
+  const out: ReturnType<typeof pickApiOptions> = {};
+  const dropdown = pick<unknown[]>(src, "DropdownOptions", "dropdownOptions");
+  const radio = pick<unknown[]>(src, "RadioButtonOptions", "radioButtonOptions");
+  const checkbox = pick<unknown[]>(
+    src,
+    "checkBoxOptions",
+    "CheckBoxOptions",
+    "checkboxOptions",
+    "CheckboxOptions"
+  );
+  const multi = pick<unknown[]>(src, "multiselectListOptions", "MultiselectListOptions");
+
+  if (Array.isArray(dropdown) && dropdown.length) {
+    out.DropdownOptions = normalizeApiOptions(dropdown);
+  }
+  if (Array.isArray(radio) && radio.length) {
+    out.RadioButtonOptions = normalizeApiOptions(radio);
+  }
+  if (Array.isArray(checkbox) && checkbox.length) {
+    out.checkBoxOptions = normalizeApiOptions(checkbox);
+  }
+  if (Array.isArray(multi) && multi.length) {
+    out.multiselectListOptions = normalizeApiOptions(multi);
+  }
+  return out;
+}
+
+function inferApiTypeFromOptions(
+  typeName: string,
+  options: ReturnType<typeof pickApiOptions>
+): string {
+  const normalized = normalizeApiTypeName(typeName);
+  if (options.checkBoxOptions?.length) return "Checkbox";
+  if (options.DropdownOptions?.length) return "Dropdown";
+  if (options.RadioButtonOptions?.length) return "RadioButton";
+  if (options.multiselectListOptions?.length) return "MultiselectList";
+  return normalized;
+}
+
+function resolveClientFieldType(
+  src: Record<string, unknown>,
+  optionLists: ReturnType<typeof pickApiOptions>
+): string {
+  return inferApiTypeFromOptions(resolveApiTypeName(src), optionLists);
+}
+
+/** Blazeo `GET /CustomField/Form/Get` row → calendar-client API shape for `appointmentUserDefinedFields`. */
+export function mapApiFormFieldToClient(row: unknown): Record<string, unknown> | null {
+  if (row == null || typeof row !== "object") return null;
+  const src = row as Record<string, unknown>;
+
+  if (!isApiFormFieldRow(src)) {
+    const hasFrontendShape =
+      src.fieldLabel != null ||
+      src.fieldKey != null ||
+      src.fieldName != null ||
+      src.FieldLabel != null ||
+      src.fieldType != null ||
+      src.FieldType != null ||
+      src.fieldSubType != null ||
+      src.FieldSubType != null;
+    if (hasFrontendShape) {
+      const apiRow = mapFrontendFormFieldToApi(src);
+      if (apiRow) return mapApiFormFieldToClient(apiRow);
+    }
+    return null;
+  }
+
+  const label = String(pick(src, "Label", "label") ?? "").trim();
+  const customFieldId = String(
+    pick(src, "CustomFieldId", "customFieldId", "DataId", "dataId", "fieldId") ?? ""
+  ).trim();
+  const optionLists = pickApiOptions(src);
+  const typeName = resolveClientFieldType(src, optionLists);
+
+  const client: Record<string, unknown> = {
+    Value: pick(src, "Value", "value") ?? null,
+    Id: pick(src, "Id", "id") ?? 0,
+    DataId: (pick(src, "DataId", "dataId") as string | undefined) ?? customFieldId ?? null,
+    CustomFieldId: customFieldId || null,
+    IsRequired: Boolean(pick(src, "IsRequired", "isRequired", "isMandatory") ?? false),
+    Label: label || null,
+    Type: typeName,
+    ...optionLists,
+  };
+
+  return client;
+}
+
+/** API form array → `appointmentUserDefinedFields` in Blazeo GET shape. */
+export function mapApiFormFieldsToClient(fields: unknown[]): Record<string, unknown>[] {
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .map((row) => mapApiFormFieldToClient(row))
+    .filter((row): row is Record<string, unknown> => row != null);
 }
 
 /**
@@ -101,22 +231,27 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
   }
 
   const label = String(pick(src, "Label", "label") ?? "").trim();
-  const typeName = String(pick(src, "Type", "type") ?? "Text");
+  const optionLists = pickApiOptions(src);
+  const typeName = resolveClientFieldType(src, optionLists);
   const fieldId = String(
     pick(src, "CustomFieldId", "customFieldId", "DataId", "dataId") ?? ""
   ).trim();
   const isRequired = Boolean(pick(src, "IsRequired", "isRequired", "isMandatory") ?? false);
-  const options =
-    pick<unknown[]>(src, "DropdownOptions", "dropdownOptions") ??
-    pick<unknown[]>(src, "RadioButtonOptions", "radioButtonOptions") ??
-    pick<unknown[]>(src, "checkBoxOptions", "CheckBoxOptions") ??
-    pick<unknown[]>(src, "multiselectListOptions", "MultiselectListOptions") ??
+  const optionsForLead =
+    optionLists.DropdownOptions ??
+    optionLists.RadioButtonOptions ??
+    optionLists.checkBoxOptions ??
+    optionLists.multiselectListOptions ??
     [];
 
   const fieldSubType = API_TYPE_TO_FIELD_SUBTYPE[typeName];
   const isLeadStyle =
     fieldSubType != null &&
-    (hasCustomFieldOptions(src) || typeName === "Dropdown" || typeName === "RadioButton");
+    (hasCustomFieldOptions(src) ||
+      typeName === "Dropdown" ||
+      typeName === "RadioButton" ||
+      typeName === "Checkbox" ||
+      typeName === "MultiselectList");
 
   if (isLeadStyle) {
     return {
@@ -128,7 +263,7 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
       isRequired,
       isMandatory: isRequired,
       ...(fieldId ? { fieldId } : {}),
-      leadCustomOptions: mapApiOptionsToLeadCustom(options),
+      leadCustomOptions: mapApiOptionsToLeadCustom(optionsForLead),
     };
   }
 

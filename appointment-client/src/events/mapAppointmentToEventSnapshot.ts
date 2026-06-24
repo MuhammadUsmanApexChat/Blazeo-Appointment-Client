@@ -34,7 +34,10 @@ function optionalLocationString(value: string | null): string | undefined {
  * Maps Apex appointment input to a Blazeo `Event` MST snapshot for
  * {@link EventModel.create} from `@blazeo.com/calendar-client`.
  */
-export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "reschedule") {
+export function mapAppointmentToEventSnapshot(
+  input: any,
+  mode: "create" | "reschedule" | "update"
+) {
   const start = parseDate(input.startDate);
   const end = parseDate(input.endDate);
   const description =
@@ -75,7 +78,7 @@ export function mapAppointmentToEventSnapshot(input: any, mode: "create" | "resc
     snap.modifiedOn = now;
   }
 
-  if (mode === "reschedule") {
+  if (mode === "reschedule" || mode === "update") {
     const eventIdRaw = input.eventId?.trim();
     snap.eventId = eventIdRaw || undefined;
   }

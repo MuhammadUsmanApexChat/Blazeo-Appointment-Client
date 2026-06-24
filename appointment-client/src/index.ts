@@ -41,7 +41,7 @@ export { getExampleSlots, getExampleEvents, getExampleParticipants, getExampleCa
 export { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync, resolveBlazeoConnection } from "./calendar/createCalendar.js";
 export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithRelationsAsync, resolveParticipantIdForOpeningHour } from "./calendar/calendarCreation.js";
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
-export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
+export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, updateAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export {
   getEventById,
   type GetEventByIdResult,
@@ -176,6 +176,8 @@ export {
   collectAppointmentFormFields,
   calendarPayloadHasFormFields,
   mapCalendarFormFieldsToApi,
+  mapApiFormFieldToClient,
+  mapApiFormFieldsToClient,
   mapApiFormFieldToFrontend,
   mapApiFormFieldsToFrontend,
 } from "./calendar/mapCalendarForm.js";
@@ -209,6 +211,8 @@ export { saveCustomFieldForm } from "./customField/saveCustomFieldForm.js";
 export {
   mapFrontendFormFieldToApi,
   mapFrontendFormFieldsToApi,
+  normalizeApiTypeName,
+  resolveApiTypeName,
   mapLeadCustomOptionsToApiOptions,
   isApiFormFieldRow,
   FIELD_SUBTYPE_TO_API_TYPE,

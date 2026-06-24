@@ -42,6 +42,11 @@ export const FIELD_KEY_TO_API_TYPE: Record<string, string> = {
   zip: "Text",
   postalcode: "Text",
   country: "Text",
+  checkbox: "Checkbox",
+  dropdown: "Dropdown",
+  select: "Dropdown",
+  radiobutton: "RadioButton",
+  radio: "RadioButton",
 };
 
 export type FrontendCalendarFormField = Record<string, unknown>;
@@ -107,14 +112,49 @@ function resolveIds(row: Record<string, unknown>): { dataId: string; customField
   return { dataId: id, customFieldId: id };
 }
 
-function resolveApiTypeName(row: Record<string, unknown>): string {
-  const explicit = pick<string | number>(row, "Type", "type", "fieldTypeName", "FieldTypeName");
+/** Normalize API / frontend type strings to Blazeo `Type` names (`Text`, `Checkbox`, …). */
+export function normalizeApiTypeName(type: string): string {
+  const trimmed = String(type ?? "").trim();
+  if (!trimmed) return "Text";
+  const lower = trimmed.toLowerCase().replace(/[\s_-]+/g, "");
+  const aliases: Record<string, string> = {
+    text: "Text",
+    email: "Email",
+    dropdown: "Dropdown",
+    select: "Dropdown",
+    multilinetext: "MultilineText",
+    textarea: "MultilineText",
+    number: "Number",
+    phone: "Phone",
+    date: "Date",
+    checkbox: "Checkbox",
+    radiobutton: "RadioButton",
+    radio: "RadioButton",
+    multiselectlist: "MultiselectList",
+    multiselect: "MultiselectList",
+  };
+  if (aliases[lower]) return aliases[lower];
+  for (const canonical of Object.values(FIELD_SUBTYPE_TO_API_TYPE)) {
+    if (canonical.toLowerCase() === lower) return canonical;
+  }
+  return trimmed;
+}
+
+export function resolveApiTypeName(row: Record<string, unknown>): string {
+  const explicit = pick<string | number>(row, "Type", "type", "fieldTypeName", "FieldTypeName", "FieldType", "fieldType");
   if (typeof explicit === "string" && explicit.trim() && !/^\d+$/.test(explicit.trim())) {
-    return explicit.trim();
+    return normalizeApiTypeName(explicit.trim());
   }
 
   const subType = pick<number | string>(row, "fieldSubType", "FieldSubType");
   const fieldTypeNum = pick<number | string>(row, "fieldType", "FieldType");
+  // Frontend sometimes sends the type name directly, e.g. { fieldType: "Checkbox" }.
+  if (typeof fieldTypeNum === "string" && fieldTypeNum.trim()) {
+    const t = fieldTypeNum.trim().toLowerCase();
+    if (t === "checkbox") return "Checkbox";
+    if (t === "dropdown" || t === "select") return "Dropdown";
+    if (t === "radiobutton" || t === "radio" || t === "radio_button") return "RadioButton";
+  }
   if (subType != null && String(subType).trim() !== "") {
     const subNum = Number(subType);
     if (Number.isFinite(subNum) && FIELD_SUBTYPE_TO_API_TYPE[subNum]) {
@@ -149,6 +189,9 @@ function attachTypeSpecificLists(
 ): void {
   const options =
     pick<unknown[]>(row, "leadCustomOptions", "LeadCustomOptions", "dropdownOptions", "DropdownOptions") ??
+    pick<unknown[]>(row, "radioButtonOptions", "RadioButtonOptions") ??
+    pick<unknown[]>(row, "checkBoxOptions", "CheckBoxOptions", "checkboxOptions", "CheckboxOptions") ??
+    pick<unknown[]>(row, "multiselectListOptions", "MultiselectListOptions") ??
     [];
 
   const mapped = mapLeadCustomOptionsToApiOptions(

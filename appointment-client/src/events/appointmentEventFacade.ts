@@ -1,11 +1,14 @@
 import { EventModel, configure } from "@blazeo.com/calendar-client";
-import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
-import {
+import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";import {
   mapAppointmentEventToPlain,
   mapAppointmentToEventSnapshot,
 } from "./mapAppointmentToEventSnapshot.js";
+import { mapBlazeoEventToClientEvent } from "./mapBlazeoEventToClientEvent.js";
+import { getEventById } from "./fetchEventById.js";
 
 function isFailureStatus(res: any) {
+  if (res == null || typeof res !== "object") return false;
+  if (!("status" in res)) return false;
   return res.status !== "success" && res.status !== "Success";
 }
 
@@ -34,7 +37,7 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
   }
 
   const snapshot = mapAppointmentToEventSnapshot(input, mode);
-  const offset = options.offsetMinutes;
+  options.offset = options.offsetMinutes;
 
   if (mode === "create") {
     if (options.localOnly) {
@@ -43,7 +46,7 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
       return { ok: true, event: eventNode };
     }
 
-    const apiRes: any = await (EventModel as any).createEvent(snapshot, offset);
+    const apiRes: any = await (EventModel as any).createEvent(snapshot, options);
 
     if (apiRes?.eventId) {
       const apiResponse = mapAppointmentEventToPlain(apiRes);
@@ -92,7 +95,7 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
     return { ok: true, event: eventNode };
   }
 
-  const apiRes: any = await eventNode.reschedule(offset);
+  const apiRes: any = await eventNode.reschedule(options);
 
   if (isFailureStatus(apiRes)) {
     const msg =
@@ -137,12 +140,77 @@ export async function rescheduleAppointmentEventAsync(input: any, options: any =
 }
 
 /**
+ * Updates an appointment in place — `EventModel.updateEvent` → `POST /event/update`.
+ * Does not change event status to rescheduled (use {@link rescheduleAppointmentEventAsync} for that).
+ */
+export async function updateAppointmentEventAsync(input: any, options: any = {}) {
+  try {
+    const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
+    ensureConfigure(resolvedBase, resolvedConsumer);
+
+    const baseUrl = resolvedBase;
+    const consumer = resolvedConsumer;
+
+    if (!options.localOnly && !baseUrl) {
+      return {
+        ok: false,
+        error:
+          "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+      };
+    }
+
+    const snapshot = mapAppointmentToEventSnapshot(input, "update");
+    const eventId = String(snapshot.eventId ?? "").trim();
+    if (!eventId || eventId === "new") {
+      return { ok: false, error: "eventId is required for update." };
+    }
+
+    if (options.localOnly) {
+      const env = buildModelEnv(baseUrl, consumer, true);
+      const eventNode: any = EventModel.create(snapshot, env);
+      return {
+        ok: true,
+        event: mapBlazeoEventToClientEvent(mapAppointmentEventToPlain(eventNode)),
+        apiResponse: mapAppointmentEventToPlain(eventNode),
+      };
+    }
+
+    const apiRes: any = await (EventModel as any).updateEvent(snapshot, options || {});
+    if (isFailureStatus(apiRes)) {
+      const msg =
+        apiRes.message ??
+        (typeof apiRes.data === "string" ? apiRes.data : undefined) ??
+        JSON.stringify(apiRes);
+      return { ok: false, error: msg || "Event update failed", apiResponse: apiRes };
+    }
+
+    let event: Record<string, unknown> | undefined;
+    if (apiRes?.data != null && typeof apiRes.data === "object") {
+      event = mapBlazeoEventToClientEvent(apiRes.data);
+    } else {
+      const fetched = await getEventById(eventId, options);
+      if (fetched.ok) event = fetched.event;
+    }
+
+    return {
+      ok: true,
+      ...(event ? { event } : {}),
+      apiResponse: apiRes,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+/**
  * Cancels an appointment — `EventModel.cancel` → `GET /event/cancel`
  * (aligned with `AppointmentAPIAdapter.Cancel`).
  */
 export async function cancelAppointmentEventAsync(appointmentEventId: string, options: any = {}) {
   try {
     const id = appointmentEventId.trim();
+    const cancellationReason = options?.cancellationReason.trim();
     if (!id) {
       return { ok: false, error: "appointmentEventId is required for cancel." };
     }
@@ -163,7 +231,7 @@ export async function cancelAppointmentEventAsync(appointmentEventId: string, op
       return { ok: true, apiResponse: undefined };
     }
 
-    const apiRes: any = await (EventModel as any).cancel(id);
+    const apiRes: any = await (EventModel as any).cancel(id, cancellationReason);
     if (isFailureStatus(apiRes)) {
       const msg =
         apiRes.message ??

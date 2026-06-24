@@ -49,6 +49,24 @@ export declare function rescheduleAppointmentEventAsync(input: any, options?: an
     event?: undefined;
 }>;
 /**
+ * Updates an appointment in place — `EventModel.updateEvent` → `POST /event/update`.
+ * Does not change event status to rescheduled (use {@link rescheduleAppointmentEventAsync} for that).
+ */
+export declare function updateAppointmentEventAsync(input: any, options?: any): Promise<{
+    ok: boolean;
+    error: string;
+    apiResponse?: undefined;
+} | {
+    ok: boolean;
+    error: any;
+    apiResponse: any;
+} | {
+    apiResponse: any;
+    event?: Record<string, unknown> | undefined;
+    ok: boolean;
+    error?: undefined;
+}>;
+/**
  * Cancels an appointment — `EventModel.cancel` → `GET /event/cancel`
  * (aligned with `AppointmentAPIAdapter.Cancel`).
  */

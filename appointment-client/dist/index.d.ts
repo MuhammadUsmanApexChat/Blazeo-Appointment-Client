@@ -17,7 +17,7 @@ export { getExampleSlots, getExampleEvents, getExampleParticipants, getExampleCa
 export { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync, resolveBlazeoConnection } from "./calendar/createCalendar.js";
 export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithRelationsAsync, resolveParticipantIdForOpeningHour } from "./calendar/calendarCreation.js";
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
-export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
+export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, updateAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
 export { getEventById, type GetEventByIdResult, type GetEventByIdOptions, } from "./events/fetchEventById.js";
 export { searchEventsByCompanyKey, type SearchEventsByCompanyKeyOptions, } from "./events/searchEventsByCompanyKey.js";
 export { backfillEventLocationIds, eventSearchResultToClientRow, } from "./events/backfillEventLocationIds.js";
@@ -42,13 +42,13 @@ export { calendarPayloadHasRelations } from "./calendar/calendarCreation.js";
 export { getCalendarLocationsByCalendar, getCalendarLocationById, saveCalendarLocationApi, removeCalendarLocationApi, } from "./calendar/calendarLocationHttp.js";
 export { fetchLeadDetails, fetchLeadByEmail, fetchLeadsByCompany, type BlazeoLeadConnection, type LeadsByCompanyListOpts, } from "./lead/fetchLeadDetails.js";
 export { getFieldTypes, getFieldType, parseFieldTypesList, parseAllFieldTypeDefinitions, wantsAllFieldTypeDefinitions, normalizeFieldTypeQuery, pickFieldTypeFromApiData, type FieldTypeDefinition, type FieldTypeResult, } from "./customField/fetchFieldTypes.js";
-export { collectAppointmentFormFields, calendarPayloadHasFormFields, mapCalendarFormFieldsToApi, mapApiFormFieldToFrontend, mapApiFormFieldsToFrontend, } from "./calendar/mapCalendarForm.js";
+export { collectAppointmentFormFields, calendarPayloadHasFormFields, mapCalendarFormFieldsToApi, mapApiFormFieldToClient, mapApiFormFieldsToClient, mapApiFormFieldToFrontend, mapApiFormFieldsToFrontend, } from "./calendar/mapCalendarForm.js";
 export { fetchCalendarAppointmentForm, getForm, type FetchCalendarFormOptions, } from "./calendar/fetchCalendarForm.js";
 export { removeCalendarFormField, removeAllCalendarFormFields, removeField, removeAllFields, resolveCustomFieldId, type CustomFieldRemoveTarget, type RemoveCustomFieldResult, type RemoveAllCalendarFormFieldsResult, } from "./calendar/removeCalendarFormFields.js";
 export { saveCalendarForm, saveForm, saveCalendarAppointmentForm, resolveCalendarIdForForm, type CalendarFormSaveTarget, type SaveCalendarAppointmentFormResult, type SaveCustomFieldFormOptions, type SaveCustomFieldFormResult, } from "./calendar/saveCalendarForm.js";
 /** @deprecated Prefer {@link saveCalendarForm} or `CalendarModel.saveForm`. */
 export { saveCustomFieldForm } from "./customField/saveCustomFieldForm.js";
-export { mapFrontendFormFieldToApi, mapFrontendFormFieldsToApi, mapLeadCustomOptionsToApiOptions, isApiFormFieldRow, FIELD_SUBTYPE_TO_API_TYPE, FIELD_TYPE_SUBTYPE_TO_API_TYPE, FIELD_KEY_TO_API_TYPE, type FrontendCalendarFormField, type MapFormFieldsOptions, } from "./customField/mapFormFieldsToApi.js";
+export { mapFrontendFormFieldToApi, mapFrontendFormFieldsToApi, normalizeApiTypeName, resolveApiTypeName, mapLeadCustomOptionsToApiOptions, isApiFormFieldRow, FIELD_SUBTYPE_TO_API_TYPE, FIELD_TYPE_SUBTYPE_TO_API_TYPE, FIELD_KEY_TO_API_TYPE, type FrontendCalendarFormField, type MapFormFieldsOptions, } from "./customField/mapFormFieldsToApi.js";
 export type { BlazeoCustomFieldConnection, ApiEnvelope } from "./customField/customFieldHttp.js";
 import { getCalendarsByCompany } from "./calendar/getCalendarsByCompany.js";
 import { fetchCalendarDetails } from "./calendar/fetchCalendarDetails.js";

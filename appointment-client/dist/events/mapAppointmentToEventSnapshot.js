@@ -59,7 +59,7 @@ export function mapAppointmentToEventSnapshot(input, mode) {
         snap.createdOn = now;
         snap.modifiedOn = now;
     }
-    if (mode === "reschedule") {
+    if (mode === "reschedule" || mode === "update") {
         const eventIdRaw = input.eventId?.trim();
         snap.eventId = eventIdRaw || undefined;
     }

@@ -8,6 +8,7 @@ import {
   getAppointmentsByFilter,
   searchEventsByCompanyKey,
   rescheduleAppointmentEventAsync,
+  updateAppointmentEventAsync,
 } from "appointment-client";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
 import {
@@ -91,6 +92,33 @@ function getExampleReschedulePayload(locationMode = "calendar") {
   };
 }
 
+function getExampleUpdatePayload(locationMode = "calendar") {
+  const start = new Date();
+  start.setDate(start.getDate() + 2);
+  start.setHours(10, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(10, 30, 0, 0);
+  const base = {
+    eventId: "existing-blazeo-event-id",
+    calendarId: "00000000-0000-0000-0000-000000000000",
+    participantId: "00000000-0000-0000-0000-000000000000",
+    title: "Updated appointment title",
+    notes: "Updated notes — same slot, no reschedule status change",
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+    email: "visitor@example.com",
+    visitorName: "Visitor",
+    timeZone: "Pakistan Standard Time",
+  };
+  if (locationMode === "custom") {
+    return { ...base, customLocation: "Updated: On-site — Building A, Room 3" };
+  }
+  return {
+    ...base,
+    calendarLocationId: "00000000-0000-0000-0000-000000000001",
+  };
+}
+
 function resultToJson(result) {
   if (!result) return "";
   if (result.ok && result.event && isStateTreeNode(result.event)) {
@@ -119,6 +147,9 @@ export function EventTab() {
   );
   const [rescheduleJson, setRescheduleJson] = useState(() =>
     JSON.stringify(getExampleReschedulePayload(), null, 2)
+  );
+  const [updateJson, setUpdateJson] = useState(() =>
+    JSON.stringify(getExampleUpdatePayload(), null, 2)
   );
   const [searchCompanyKey, setSearchCompanyKey] = useState("");
   const [searchFrom, setSearchFrom] = useState(() => new Date().toISOString().slice(0, 10));
@@ -213,6 +244,33 @@ export function EventTab() {
     setBusy(true);
     try {
       const result = await rescheduleAppointmentEventAsync(payload, eventOpts);
+      setOutput(resultToJson(result));
+      if (!result.ok) setError(mapBlazeoDemoError(result.error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdate(e) {
+    e.preventDefault();
+    setError("");
+    setOutput("");
+    if (!ensureBase()) return;
+    configureBlazeoFromEffective(effective);
+    ensureBlazeoHttpReady({
+      baseUrl: effective.baseUrl,
+      ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    });
+    let payload;
+    try {
+      payload = JSON.parse(updateJson);
+    } catch (err) {
+      setError(`Update JSON: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await updateAppointmentEventAsync(payload, eventOpts);
       setOutput(resultToJson(result));
       if (!result.ok) setError(mapBlazeoDemoError(result.error));
     } finally {
@@ -359,7 +417,7 @@ export function EventTab() {
       <div className="card">
         <h2>Appointment events</h2>
         <p className="muted small">
-          Create/reschedule/cancel Blazeo events via <code>appointment-client</code>.
+          Create/reschedule/update/cancel Blazeo events via <code>appointment-client</code>.
         </p>
         <label className="form__label">
           <span>Offset minutes</span>
@@ -544,6 +602,52 @@ export function EventTab() {
           </div>
           <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Working…" : "Reschedule"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Update event</h2>
+        <p className="muted small">
+          Updates fields in place via <code>POST /event/update</code> — does not mark the event as
+          rescheduled. Include <code>calendarLocationId</code> or <code>customLocation</code> to
+          change where the event is held.
+        </p>
+        <form onSubmit={handleUpdate} className="form">
+          <label className="form__label">
+            <span>Payload (JSON)</span>
+            <textarea
+              className="form__textarea"
+              value={updateJson}
+              onChange={(e) => setUpdateJson(e.target.value)}
+              spellCheck={false}
+              rows={14}
+            />
+          </label>
+          <div className="connection-card__row">
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setUpdateJson(JSON.stringify(getExampleUpdatePayload("calendar"), null, 2))
+              }
+            >
+              Example: saved location
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() =>
+                setUpdateJson(JSON.stringify(getExampleUpdatePayload("custom"), null, 2))
+              }
+            >
+              Example: custom location
+            </button>
+          </div>
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            {busy ? "Working…" : "Update"}
           </button>
         </form>
       </div>
