@@ -4,6 +4,8 @@ import { unwrapCalendarGetData, pickOpeningHoursArrayFromCalendarPayload, normal
 import { buildUnifiedCalendarView } from "./buildUnifiedCalendarView.js";
 import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
 import { fetchCalendarAppointmentForm } from "./fetchCalendarForm.js";
+import { fetchCalendarFieldRequirements } from "./fetchCalendarFieldRequirements.js";
+import { mapFieldRequirementsToFrontend, mergeAppointmentUserDefinedFields, } from "./mapFieldRequirements.js";
 import { emptyCalendarPreferencesBundle, fetchCalendarPreferences, } from "../preference/fetchCalendarPreferences.js";
 import { mergePreferencesIntoCalendarView } from "../preference/mergePreferencesIntoCalendarView.js";
 import { mapToFrontendCalendarView, } from "./mapToFrontendCalendarView.js";
@@ -92,10 +94,12 @@ function unwrapModelList(raw) {
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
  */
 export async function fetchCalendarDetails(calendarId, options = {}) {
-    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, includeFormFields: includeFormFieldsOpt, viewFormat = "frontend", baseUrl: optBaseUrl, consumer: optConsumer, } = options;
+    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, includeFormFields: includeFormFieldsOpt, includeFieldRequirements: includeFieldRequirementsOpt, viewFormat = "frontend", baseUrl: optBaseUrl, consumer: optConsumer, } = options;
     const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
     const includeLocations = includeLocationsOpt ?? includePreferences;
     const includeFormFields = includeFormFieldsOpt ?? includeUnifiedCalendarView;
+    const includeFieldRequirements = includeFieldRequirementsOpt ?? includeFormFields;
+    const formFieldFormat = viewFormat === "frontend" ? "frontend" : "api";
     const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
     if (!conn.ok) {
         return {
@@ -170,9 +174,17 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         ? fetchCalendarAppointmentForm(calendarId, {
             baseUrl: conn.baseUrl,
             consumer: conn.consumer,
+            format: formFieldFormat,
         })
         : Promise.resolve(null);
-    const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw, preferencesBundle, appointmentLocations, appointmentUserDefinedFields,] = await Promise.all([
+    const fieldRequirementsPromise = includeFieldRequirements
+        ? fetchCalendarFieldRequirements(calendarId, {
+            baseUrl: conn.baseUrl,
+            consumer: conn.consumer,
+            format: "api",
+        })
+        : Promise.resolve(null);
+    const [participantsRaw, participantsViaGet, participantsInfoRaw, allHoursRaw, preferencesBundle, appointmentLocations, appointmentUserDefinedFields, leadFieldRequirements,] = await Promise.all([
         cal.getParticipants(),
         participantsViaGetPromise,
         fetchParticipantsInfo ? cal.getParticipantsInfo() : Promise.resolve(null),
@@ -180,6 +192,7 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         preferencesPromise,
         locationsPromise,
         formFieldsPromise,
+        fieldRequirementsPromise,
     ]);
     const participantList = mergeParticipantSnapshots(unwrapModelList(participantsRaw), unwrapModelList(participantsViaGet));
     const infoList = unwrapModelList(participantsInfoRaw);
@@ -263,10 +276,21 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
         const prefs = preferencesBundle ?? emptyCalendarPreferencesBundle();
         finalView = mergePreferencesIntoCalendarView(finalView, prefs);
     }
-    if (includeFormFields &&
-        Array.isArray(appointmentUserDefinedFields) &&
-        appointmentUserDefinedFields.length > 0) {
-        finalView.appointmentUserDefinedFields = appointmentUserDefinedFields;
+    if (includeFormFields || includeFieldRequirements) {
+        const requirements = (Array.isArray(leadFieldRequirements)
+            ? leadFieldRequirements
+            : []);
+        const basicFields = mapFieldRequirementsToFrontend(requirements, calendarId);
+        const customFields = includeFormFields && Array.isArray(appointmentUserDefinedFields)
+            ? appointmentUserDefinedFields
+            : [];
+        const merged = mergeAppointmentUserDefinedFields(basicFields, customFields);
+        if (merged.length > 0) {
+            finalView.appointmentUserDefinedFields = merged;
+        }
+        if (includeFieldRequirements && requirements.length > 0) {
+            finalView.leadFieldRequirements = requirements;
+        }
     }
     let responseView = finalView;
     if (viewFormat === "frontend") {
@@ -297,8 +321,12 @@ export async function fetchCalendarDetails(calendarId, options = {}) {
                     ? appointmentLocations.length
                     : 0,
                 formFieldsIncluded: includeFormFields,
-                appointmentUserDefinedFieldCount: Array.isArray(appointmentUserDefinedFields)
-                    ? appointmentUserDefinedFields.length
+                fieldRequirementsIncluded: includeFieldRequirements,
+                appointmentUserDefinedFieldCount: Array.isArray(finalView?.appointmentUserDefinedFields)
+                    ? finalView.appointmentUserDefinedFields.length
+                    : 0,
+                leadFieldRequirementCount: Array.isArray(leadFieldRequirements)
+                    ? leadFieldRequirements.length
                     : 0,
             },
             enumerable: false

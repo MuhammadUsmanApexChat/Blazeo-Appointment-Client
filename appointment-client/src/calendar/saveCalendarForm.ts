@@ -13,7 +13,8 @@ import {
   collectAppointmentFormFields,
   mapCalendarFormFieldsToApi,
 } from "./mapCalendarForm.js";
-import { mapFrontendFormFieldsToApi } from "../customField/mapFormFieldsToApi.js";
+import { splitAppointmentFormFields, type LeadFieldRequirement } from "./mapFieldRequirements.js";
+import { saveCalendarFieldRequirements } from "./saveCalendarFieldRequirements.js";
 
 /** Calendar id string or any object with `calendarId` / `id` (calendar view, BO, MST snapshot). */
 export type CalendarFormSaveTarget =
@@ -57,13 +58,21 @@ export type SaveCalendarAppointmentFormResult =
   | {
       ok: true;
       skipped: false;
-      apiFields: FieldTypeDefinition[];
-      envelope: ApiEnvelope;
+      fieldRequirementsSaved?: boolean;
+      fieldRequirements?: LeadFieldRequirement[];
+      fieldRequirementsEnvelope?: ApiEnvelope;
+      appointmentFormSaved?: boolean;
+      apiFields?: FieldTypeDefinition[];
+      envelope?: ApiEnvelope;
     }
   | { ok: false; error: string; reason?: string; apiResponse?: unknown };
 
 /**
  * After calendar create/update: save `appointmentUserDefinedFields` from the calendar payload.
+ *
+ * Rows without `fieldId` that map to bookable lead columns are saved via
+ * `LeadModel.saveFieldRequirements`. Rows with `fieldId` (and other custom shapes) are saved via
+ * `POST /CustomField/Form/Save`.
  */
 export async function saveCalendarAppointmentForm(
   calendarId: string,
@@ -75,28 +84,67 @@ export async function saveCalendarAppointmentForm(
     return { ok: true, skipped: true };
   }
 
-  const res = await saveCalendarForm(calendarId, fields, connection);
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: res.detail,
-      reason: res.reason,
-    };
+  const { basicFields, customFields } = splitAppointmentFormFields(fields);
+
+  let fieldRequirementsSaved = false;
+  let fieldRequirements: LeadFieldRequirement[] | undefined;
+  let fieldRequirementsEnvelope: ApiEnvelope | undefined;
+
+  if (basicFields.length > 0) {
+    const basicRes = await saveCalendarFieldRequirements(calendarId, basicFields, connection);
+    if (!basicRes.ok) {
+      return {
+        ok: false,
+        error: basicRes.detail,
+        reason: basicRes.reason,
+        apiResponse: "envelope" in basicRes ? basicRes.envelope : undefined,
+      };
+    }
+    if (!basicRes.skipped) {
+      fieldRequirementsSaved = true;
+      fieldRequirements = basicRes.requirements;
+      fieldRequirementsEnvelope = basicRes.envelope;
+    }
   }
 
-  if (res.envelope.status === "failure") {
-    return {
-      ok: false,
-      error: String(res.envelope.message ?? "Custom field form save failed"),
-      apiResponse: res.envelope,
-    };
+  let appointmentFormSaved = false;
+  let apiFields: FieldTypeDefinition[] | undefined;
+  let envelope: ApiEnvelope | undefined;
+
+  if (customFields.length > 0) {
+    const res = await saveCalendarForm(calendarId, customFields, connection);
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: res.detail,
+        reason: res.reason,
+      };
+    }
+
+    if (res.envelope.status === "failure") {
+      return {
+        ok: false,
+        error: String(res.envelope.message ?? "Custom field form save failed"),
+        apiResponse: res.envelope,
+      };
+    }
+
+    appointmentFormSaved = true;
+    apiFields = res.apiFields;
+    envelope = res.envelope;
+  }
+
+  if (!fieldRequirementsSaved && !appointmentFormSaved) {
+    return { ok: true, skipped: true };
   }
 
   return {
     ok: true,
     skipped: false,
-    apiFields: res.apiFields,
-    envelope: res.envelope,
+    ...(fieldRequirementsSaved
+      ? { fieldRequirementsSaved, fieldRequirements, fieldRequirementsEnvelope }
+      : {}),
+    ...(appointmentFormSaved ? { appointmentFormSaved, apiFields, envelope } : {}),
   };
 }
 

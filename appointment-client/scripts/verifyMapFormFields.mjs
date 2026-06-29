@@ -7,6 +7,7 @@ import {
   collectAppointmentFormFields,
   mapCalendarFormFieldsToApi,
   mapFrontendFormFieldsToApi,
+  mapApiFormFieldToFrontend,
   calendarPayloadHasFormFields,
   resolveCalendarIdForForm,
   isApiFormFieldRow,
@@ -54,6 +55,73 @@ if (api[1].Type !== "Email") {
 }
 if (api[2].Type !== "Dropdown" || !Array.isArray(api[2].DropdownOptions) || api[2].DropdownOptions.length !== 2) {
   console.error("Dropdown mapping failed:", api[2]);
+  process.exit(1);
+}
+
+const withDescription = mapFrontendFormFieldsToApi([
+  {
+    fieldName: "lead custom date",
+    fieldLabel: "lead custom date",
+    fieldKey: "leadcustomdate",
+    fieldType: "Date",
+    fieldId: "cdb068c5-e711-4bda-abb2-e824991bf959",
+    fieldSubType: 0,
+    description: "Pick a date for your visit",
+    isRequired: false,
+    isMandatory: false,
+  },
+]);
+if (withDescription[0].helpText !== "Pick a date for your visit" || withDescription[0].HelpText !== "Pick a date for your visit") {
+  console.error("description → helpText mapping failed:", withDescription[0]);
+  process.exit(1);
+}
+if (withDescription[0].description != null) {
+  console.error("description should not be on API payload:", withDescription[0]);
+  process.exit(1);
+}
+
+const dateFromApi = mapApiFormFieldToFrontend({
+  Value: null,
+  Label: "lead custom date",
+  Type: "Date",
+  DataId: "cdb068c5-e711-4bda-abb2-e824991bf959",
+  CustomFieldId: "cdb068c5-e711-4bda-abb2-e824991bf959",
+  IsRequired: false,
+  HelpText: "Pick a date for your visit",
+});
+if (
+  !dateFromApi ||
+  dateFromApi.fieldType !== "Date" ||
+  dateFromApi.fieldSubType !== 307 ||
+  dateFromApi.fieldKey !== "leadcustomdate" ||
+  dateFromApi.description !== "Pick a date for your visit"
+) {
+  console.error("API → frontend Date field type mapping failed:", dateFromApi);
+  process.exit(1);
+}
+
+const dropdownFromApi = mapApiFormFieldToFrontend({
+  Label: "Test",
+  Type: "Dropdown",
+  CustomFieldId: "abc",
+  DataId: "abc",
+  IsRequired: false,
+  DropdownOptions: [{ Key: "a", Value: "A" }],
+});
+if (!dropdownFromApi || dropdownFromApi.fieldType !== "Dropdown" || dropdownFromApi.fieldSubType !== 303) {
+  console.error("API → frontend Dropdown field type mapping failed:", dropdownFromApi);
+  process.exit(1);
+}
+
+const firstNameFromApi = mapApiFormFieldToFrontend({
+  Label: "First Name",
+  Type: "Text",
+  CustomFieldId: "0702d225-45b1-4381-b24b-e788b17c2915",
+  DataId: "0702d225-45b1-4381-b24b-e788b17c2915",
+  IsRequired: true,
+});
+if (!firstNameFromApi || firstNameFromApi.fieldKey !== "FirstName" || firstNameFromApi.fieldType != null) {
+  console.error("Standard booking field should stay calendar-style:", firstNameFromApi);
   process.exit(1);
 }
 

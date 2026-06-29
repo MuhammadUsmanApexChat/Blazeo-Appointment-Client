@@ -106,6 +106,31 @@ function resolveLabel(row: Record<string, unknown>): string {
   ).trim();
 }
 
+/** Frontend `description` → API `helpText` / `HelpText` for custom field form save. */
+export function resolveHelpTextForApi(row: Record<string, unknown>): string | undefined {
+  const fromDescription = pick<string>(row, "description", "Description");
+  if (fromDescription != null && String(fromDescription).trim() !== "") {
+    return String(fromDescription).trim();
+  }
+  const existing = pick<string>(row, "helpText", "HelpText");
+  if (existing != null && String(existing).trim() !== "") {
+    return String(existing).trim();
+  }
+  return undefined;
+}
+
+function attachHelpTextToApiPayload(
+  payload: FieldTypeDefinition,
+  row: Record<string, unknown>
+): void {
+  const helpText = resolveHelpTextForApi(row);
+  if (!helpText) return;
+  payload.helpText = helpText;
+  payload.HelpText = helpText;
+  delete payload.description;
+  delete payload.Description;
+}
+
 function resolveIds(row: Record<string, unknown>): { dataId: string; customFieldId: string } {
   const existing = pick<string>(row, "fieldId", "FieldId", "dataId", "DataId", "customFieldId", "CustomFieldId");
   const id = existing != null && String(existing).trim() !== "" ? String(existing).trim() : newGuid();
@@ -236,7 +261,9 @@ export function mapFrontendFormFieldToApi(row: unknown): FieldTypeDefinition | n
   const src = row as Record<string, unknown>;
 
   if (isApiFormFieldRow(src)) {
-    return { ...src } as FieldTypeDefinition;
+    const payload = { ...src } as FieldTypeDefinition;
+    attachHelpTextToApiPayload(payload, src);
+    return payload;
   }
 
   const label = resolveLabel(src);
@@ -253,6 +280,7 @@ export function mapFrontendFormFieldToApi(row: unknown): FieldTypeDefinition | n
   };
 
   attachTypeSpecificLists(payload, src, apiType);
+  attachHelpTextToApiPayload(payload, src);
   return payload;
 }
 

@@ -63,5 +63,5 @@ export async function saveCalendarPreferencesAfterSave(
   result = appendSaveResult(result, "emailRemindersPreference", email);
   result = appendSaveResult(result, "inAppRemindersPreference", inApp);
   result = appendSaveResult(result, "calendarThemePreference", theme);
-  return result;
+  return { ok: true, ...result };
 }

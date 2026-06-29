@@ -38,7 +38,21 @@ export { getParticipants } from "./calendar/getParticipants.js";
 export { getExampleSlots, getExampleEvents, getExampleParticipants, getExampleCalendarRoot, getExampleCalendarRootSnapshot } from "./exampleData.js";
 
 // Re-export core models from calendar-client for convenience
-export { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync, resolveBlazeoConnection } from "./calendar/createCalendar.js";
+export {
+  pickCalendarIdFromApiData,
+  resolveCalendarIdAfterSave,
+  syncCalendarIdOnNode,
+} from "./calendar/resolveCalendarIdAfterSave.js";
+export {
+  buildCalendarCreateSuccess,
+  buildRelationSaveFailure,
+} from "./calendar/buildCalendarCreateResult.js";
+export {
+  createCalendarAsync,
+  updateCalendarAsync,
+  deleteCalendarAsync,
+  resolveBlazeoConnection,
+} from "./calendar/createCalendar.js";
 export { CalendarCreation, createCalendarWithRelationsAsync, updateCalendarWithRelationsAsync, resolveParticipantIdForOpeningHour } from "./calendar/calendarCreation.js";
 export { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHour, saveCalendarOpeningHoursBatch } from "./calendar/blazeoCalendarRelationMethods.js";
 export { createAppointmentEventAsync, rescheduleAppointmentEventAsync, updateAppointmentEventAsync, cancelAppointmentEventAsync } from "./events/appointmentEventFacade.js";
@@ -78,6 +92,9 @@ export {
   mapEmailRemindersToPreferencePayload,
   mapInAppRemindersToPreferencePayload,
   mapReminderRecipients,
+  normalizeReminderRecipientType,
+  isValidPreferenceRecipient,
+  REMINDER_RECIPIENTS,
   calendarPayloadHasEventReminders,
   SMS_CHANNEL_TYPE,
   EMAIL_CHANNEL_TYPE,
@@ -187,6 +204,12 @@ export {
   type FetchCalendarFormOptions,
 } from "./calendar/fetchCalendarForm.js";
 export {
+  fetchCalendarFieldRequirements,
+  getFieldRequirements,
+  type FetchCalendarFieldRequirementsOptions,
+  type CalendarFieldRequirementsBundle,
+} from "./calendar/fetchCalendarFieldRequirements.js";
+export {
   removeCalendarFormField,
   removeAllCalendarFormFields,
   removeField,
@@ -206,6 +229,30 @@ export {
   type SaveCustomFieldFormOptions,
   type SaveCustomFieldFormResult,
 } from "./calendar/saveCalendarForm.js";
+export {
+  saveCalendarFieldRequirements,
+  saveFieldRequirements,
+  type SaveCalendarFieldRequirementsResult,
+} from "./calendar/saveCalendarFieldRequirements.js";
+export {
+  BOOKABLE_LEAD_COLUMNS,
+  FIELD_KEY_TO_LEAD_COLUMN,
+  hasFormFieldId,
+  resolveLeadColumnFromField,
+  isBookableLeadField,
+  mapFrontendFieldToRequirement,
+  mapFrontendFieldsToRequirements,
+  unwrapFieldRequirementsData,
+  mapFieldRequirementToFrontend,
+  mapFieldRequirementsToFrontend,
+  filterCustomFormFieldsFromFetch,
+  mergeAppointmentUserDefinedFields,
+  LEAD_COLUMN_FRONTEND_META,
+  splitAppointmentFormFields,
+  type BookableLeadColumn,
+  type LeadFieldRequirement,
+  type SplitAppointmentFormFieldsResult,
+} from "./calendar/mapFieldRequirements.js";
 /** @deprecated Prefer {@link saveCalendarForm} or `CalendarModel.saveForm`. */
 export { saveCustomFieldForm } from "./customField/saveCustomFieldForm.js";
 export {
@@ -215,6 +262,7 @@ export {
   resolveApiTypeName,
   mapLeadCustomOptionsToApiOptions,
   isApiFormFieldRow,
+  resolveHelpTextForApi,
   FIELD_SUBTYPE_TO_API_TYPE,
   FIELD_TYPE_SUBTYPE_TO_API_TYPE,
   FIELD_KEY_TO_API_TYPE,
@@ -232,6 +280,7 @@ import {
 } from "./calendar/mapCalendarForm.js";
 import { saveCalendarForm } from "./calendar/saveCalendarForm.js";
 import { fetchCalendarAppointmentForm } from "./calendar/fetchCalendarForm.js";
+import { fetchCalendarFieldRequirements } from "./calendar/fetchCalendarFieldRequirements.js";
 import {
   removeCalendarFormField,
   removeAllCalendarFormFields,
@@ -265,9 +314,12 @@ export const CalendarModel = {
   saveForm: saveCalendarForm,
   /**
    * Load booking form — automatic in `fetchCalendarDetails` / `getCalendarView` as
-   * `appointmentUserDefinedFields` on the returned view.
+   * `appointmentUserDefinedFields` on the returned view (basic rows from `GET /lead/fields/get`
+   * plus custom rows from `GET /CustomField/Form/Get`).
    */
   getForm: fetchCalendarAppointmentForm,
+  /** Basic lead field config — `GET /lead/fields/get` (also merged into fetch `appointmentUserDefinedFields`). */
+  getFieldRequirements: fetchCalendarFieldRequirements,
   /** Rows from `calendar.appointmentUserDefinedFields` → API form payload. */
   mapFormFieldsToApi: mapCalendarFormFieldsToApi,
   collectAppointmentFormFields,

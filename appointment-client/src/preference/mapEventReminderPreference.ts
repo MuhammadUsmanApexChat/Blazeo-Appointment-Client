@@ -7,6 +7,16 @@ export const SMS_EVENT_REMINDER_OPTION = "SMSEventReminder";
 export const EMAIL_EVENT_REMINDER_OPTION = "EmailEventReminder";
 export const IN_APP_EVENT_REMINDER_OPTION = "InAppEventReminder";
 
+/** Portal / Apex `RecipientType` — maps to preference `Recipient` payload values. */
+export const REMINDER_RECIPIENTS = {
+  Lead: 0,
+  Agent: 1,
+  LeadAndAgent: 2,
+} as const;
+
+export type ReminderRecipientType =
+  (typeof REMINDER_RECIPIENTS)[keyof typeof REMINDER_RECIPIENTS];
+
 export type AppointmentReminderInput = {
   channelType?: number;
   channelId?: number;
@@ -47,15 +57,38 @@ function pick<T>(obj: any, ...keys: string[]): T | undefined {
   return undefined;
 }
 
-/** ApexFlows `RecipientType` → preference `Recipient` value. */
+/** True when a preference row has a valid recipient (including Lead = 0). */
+export function isValidPreferenceRecipient(recipient: number[] | number): boolean {
+  if (Array.isArray(recipient)) {
+    return recipient.length > 0;
+  }
+  const n = Number(recipient);
+  return Number.isFinite(n) && n >= REMINDER_RECIPIENTS.Lead;
+}
+
+/**
+ * Normalize portal `recipientType` to {@link REMINDER_RECIPIENTS}.
+ * Supports legacy values: 1 = Agent, 3 = LeadAndAgent (old both).
+ */
+export function normalizeReminderRecipientType(recipientType: number): ReminderRecipientType {
+  const n = Number(recipientType);
+  if (n === REMINDER_RECIPIENTS.Lead) return REMINDER_RECIPIENTS.Lead;
+  if (n === REMINDER_RECIPIENTS.Agent) return REMINDER_RECIPIENTS.Agent;
+  if (n === REMINDER_RECIPIENTS.LeadAndAgent) return REMINDER_RECIPIENTS.LeadAndAgent;
+  if (n === 3) return REMINDER_RECIPIENTS.LeadAndAgent;
+  if (n === 1) return REMINDER_RECIPIENTS.Agent;
+  return REMINDER_RECIPIENTS.Lead;
+}
+
+/** `recipientType` → preference `Recipient` array for SMS / Email reminders. */
 export function mapReminderRecipients(recipientType: number): number[] {
-  switch (recipientType) {
-    case 1:
-      return [1];
-    case 2:
-      return [2];
-    case 3:
-      return [1, 2];
+  switch (normalizeReminderRecipientType(recipientType)) {
+    case REMINDER_RECIPIENTS.Lead:
+      return [REMINDER_RECIPIENTS.Lead];
+    case REMINDER_RECIPIENTS.Agent:
+      return [REMINDER_RECIPIENTS.Agent];
+    case REMINDER_RECIPIENTS.LeadAndAgent:
+      return [REMINDER_RECIPIENTS.Lead, REMINDER_RECIPIENTS.Agent];
     default:
       return [];
   }
@@ -65,9 +98,11 @@ export function formatPreferenceRecipient(
   recipientType: number,
   asScalar: boolean
 ): number[] | number {
-  const arr = mapReminderRecipients(recipientType);
-  if (asScalar) return arr[0] ?? 0;
-  return arr;
+  const normalized = normalizeReminderRecipientType(recipientType);
+  if (asScalar) {
+    return normalized;
+  }
+  return mapReminderRecipients(normalized);
 }
 
 export function recipientValueToArray(recipient: unknown): number[] {
@@ -135,11 +170,8 @@ export function mapRemindersToPreferencePayload(
   return reminders
     .filter((r) => reminderChannelType(r) === config.channelType)
     .map((r) => {
-      const recipientType = Number(r.recipientType ?? 0);
+      const recipientType = Number(r.recipientType ?? REMINDER_RECIPIENTS.Lead);
       const recipient = formatPreferenceRecipient(recipientType, config.recipientAsScalar);
-      const hasRecipient = Array.isArray(recipient)
-        ? recipient.length > 0
-        : Number(recipient) > 0;
       return {
         Recipient: recipient,
         Before: Number(r.beforeEventTime ?? 0),
@@ -148,12 +180,7 @@ export function mapRemindersToPreferencePayload(
         Enabled: true,
       };
     })
-    .filter((row) => {
-      const hasRecipient = Array.isArray(row.Recipient)
-        ? row.Recipient.length > 0
-        : Number(row.Recipient) > 0;
-      return hasRecipient && row.Before > 0;
-    });
+    .filter((row) => isValidPreferenceRecipient(row.Recipient) && row.Before > 0);
 }
 
 export function mapSmsRemindersToPreferencePayload(reminders: AppointmentReminderInput[]) {

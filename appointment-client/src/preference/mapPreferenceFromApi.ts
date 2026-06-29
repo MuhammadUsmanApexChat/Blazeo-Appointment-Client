@@ -4,10 +4,12 @@ import {
   EMAIL_EVENT_REMINDER_OPTION,
   IN_APP_EVENT_REMINDER_OPTION,
   NOTIFICATION_CHANNEL_TYPE,
+  REMINDER_RECIPIENTS,
   SMS_CHANNEL_TYPE,
   SMS_EVENT_REMINDER_OPTION,
   type AppointmentReminderInput,
   type EventReminderPreferenceRow,
+  isValidPreferenceRecipient,
   recipientValueToArray,
 } from "./mapEventReminderPreference.js";
 
@@ -94,12 +96,7 @@ function normalizeEventReminderRows(
         Enabled: pick(row, "Enabled", "enabled") !== false,
       };
     })
-    .filter((row) => {
-      const hasRecipient = Array.isArray(row.Recipient)
-        ? row.Recipient.length > 0
-        : Number(row.Recipient) > 0;
-      return row.Enabled && hasRecipient && row.Before > 0;
-    });
+    .filter((row) => row.Enabled && isValidPreferenceRecipient(row.Recipient) && row.Before > 0);
 }
 
 function normalizeThemeRows(rows: Record<string, unknown>[]): CalendarThemePreferenceRow[] {
@@ -117,14 +114,42 @@ function normalizeThemeRows(rows: Record<string, unknown>[]): CalendarThemePrefe
     .filter((row) => row.Enabled && (row.logoUrl || row.color));
 }
 
-/** Preference `Recipient` → frontend `recipientType`. */
+/** Preference `Recipient` → frontend `recipientType` ({@link REMINDER_RECIPIENTS}). */
 export function mapPreferenceRecipientsToRecipientType(recipient: unknown): number {
   const ids = recipientValueToArray(recipient);
   const sorted = [...new Set(ids)].sort((a, b) => a - b);
-  if (sorted.length === 2 && sorted[0] === 1 && sorted[1] === 2) return 3;
-  if (sorted.length === 1 && sorted[0] === 1) return 1;
-  if (sorted.length === 1 && sorted[0] === 2) return 2;
-  return sorted[0] ?? 0;
+
+  if (
+    sorted.length === 2 &&
+    sorted[0] === REMINDER_RECIPIENTS.Lead &&
+    sorted[1] === REMINDER_RECIPIENTS.Agent
+  ) {
+    return REMINDER_RECIPIENTS.LeadAndAgent;
+  }
+  // Legacy preference rows stored LeadAndAgent as [1, 2].
+  if (sorted.length === 2 && sorted[0] === 1 && sorted[1] === 2) {
+    return REMINDER_RECIPIENTS.LeadAndAgent;
+  }
+
+  if (sorted.length === 1) {
+    if (sorted[0] === REMINDER_RECIPIENTS.Lead) return REMINDER_RECIPIENTS.Lead;
+    if (sorted[0] === REMINDER_RECIPIENTS.Agent) return REMINDER_RECIPIENTS.Agent;
+    if (sorted[0] === REMINDER_RECIPIENTS.LeadAndAgent) {
+      return REMINDER_RECIPIENTS.LeadAndAgent;
+    }
+    // Legacy: Lead was stored as Recipient [2].
+    if (sorted[0] === 2) return REMINDER_RECIPIENTS.Lead;
+    // Legacy: Agent as [1] — same numeric value as new Agent recipientType.
+    if (sorted[0] === 1) return REMINDER_RECIPIENTS.Agent;
+  }
+
+  if (typeof recipient === "number" && !Number.isNaN(recipient)) {
+    if (recipient === REMINDER_RECIPIENTS.LeadAndAgent) return REMINDER_RECIPIENTS.LeadAndAgent;
+    if (recipient === REMINDER_RECIPIENTS.Agent) return REMINDER_RECIPIENTS.Agent;
+    if (recipient === REMINDER_RECIPIENTS.Lead) return REMINDER_RECIPIENTS.Lead;
+  }
+
+  return sorted[0] ?? REMINDER_RECIPIENTS.Lead;
 }
 
 export function mapEventReminderPreferenceToAppointmentReminders(

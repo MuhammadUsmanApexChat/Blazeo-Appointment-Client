@@ -1,5 +1,6 @@
 import { CalendarModel, configure, getConfig } from "@blazeo.com/calendar-client";
 import { blazeoClientConfig } from "../config/blazeoClientDefaults.js";
+import { buildCalendarCreateSuccess } from "./buildCalendarCreateResult.js";
 import { mapCalendarBOToSnapshot } from "./mapCalendarToBlazeoSnapshot.js";
 function isFailureStatus(res) {
     return res.status !== "success" && res.status !== "Success";
@@ -87,7 +88,7 @@ export async function createCalendarAsync(calendar, options = {}) {
                 apiResponse: apiRes,
             };
         }
-        return { ok: true, calendar: calendarNode, apiResponse: apiRes };
+        return buildCalendarCreateSuccess(calendar, calendarNode, apiRes);
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);

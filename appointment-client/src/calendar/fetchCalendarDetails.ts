@@ -9,6 +9,12 @@ import {
 import { buildUnifiedCalendarView, type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
 import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
 import { fetchCalendarAppointmentForm } from "./fetchCalendarForm.js";
+import { fetchCalendarFieldRequirements } from "./fetchCalendarFieldRequirements.js";
+import {
+  mapFieldRequirementsToFrontend,
+  mergeAppointmentUserDefinedFields,
+  type LeadFieldRequirement,
+} from "./mapFieldRequirements.js";
 import {
   emptyCalendarPreferencesBundle,
   fetchCalendarPreferences,
@@ -114,6 +120,8 @@ export async function fetchCalendarDetails(
     includeLocations?: boolean;
     /** Load `appointmentUserDefinedFields` via `GET /CustomField/Form/Get` (default: same as `includeUnifiedCalendarView`). */
     includeFormFields?: boolean;
+    /** Load basic lead fields via `GET /lead/fields/get` (default: same as `includeFormFields`). */
+    includeFieldRequirements?: boolean;
     /**
      * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
@@ -131,6 +139,7 @@ export async function fetchCalendarDetails(
     includePreferences: includePreferencesOpt,
     includeLocations: includeLocationsOpt,
     includeFormFields: includeFormFieldsOpt,
+    includeFieldRequirements: includeFieldRequirementsOpt,
     viewFormat = "frontend",
     baseUrl: optBaseUrl,
     consumer: optConsumer,
@@ -138,6 +147,8 @@ export async function fetchCalendarDetails(
   const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
   const includeLocations = includeLocationsOpt ?? includePreferences;
   const includeFormFields = includeFormFieldsOpt ?? includeUnifiedCalendarView;
+  const includeFieldRequirements = includeFieldRequirementsOpt ?? includeFormFields;
+  const formFieldFormat = viewFormat === "frontend" ? "frontend" : "api";
 
   const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
   if (!conn.ok) {
@@ -226,6 +237,15 @@ export async function fetchCalendarDetails(
     ? fetchCalendarAppointmentForm(calendarId, {
         baseUrl: conn.baseUrl,
         consumer: conn.consumer,
+        format: formFieldFormat,
+      })
+    : Promise.resolve(null);
+
+  const fieldRequirementsPromise = includeFieldRequirements
+    ? fetchCalendarFieldRequirements(calendarId, {
+        baseUrl: conn.baseUrl,
+        consumer: conn.consumer,
+        format: "api",
       })
     : Promise.resolve(null);
 
@@ -237,6 +257,7 @@ export async function fetchCalendarDetails(
     preferencesBundle,
     appointmentLocations,
     appointmentUserDefinedFields,
+    leadFieldRequirements,
   ] = await Promise.all([
     cal.getParticipants(),
     participantsViaGetPromise,
@@ -245,6 +266,7 @@ export async function fetchCalendarDetails(
     preferencesPromise,
     locationsPromise,
     formFieldsPromise,
+    fieldRequirementsPromise,
   ]);
 
   const participantList = mergeParticipantSnapshots(
@@ -353,12 +375,22 @@ export async function fetchCalendarDetails(
     finalView = mergePreferencesIntoCalendarView(finalView, prefs);
   }
 
-  if (
-    includeFormFields &&
-    Array.isArray(appointmentUserDefinedFields) &&
-    appointmentUserDefinedFields.length > 0
-  ) {
-    finalView.appointmentUserDefinedFields = appointmentUserDefinedFields;
+  if (includeFormFields || includeFieldRequirements) {
+    const requirements = (Array.isArray(leadFieldRequirements)
+      ? leadFieldRequirements
+      : []) as LeadFieldRequirement[];
+    const basicFields = mapFieldRequirementsToFrontend(requirements, calendarId);
+    const customFields =
+      includeFormFields && Array.isArray(appointmentUserDefinedFields)
+        ? appointmentUserDefinedFields
+        : [];
+    const merged = mergeAppointmentUserDefinedFields(basicFields, customFields);
+    if (merged.length > 0) {
+      finalView.appointmentUserDefinedFields = merged;
+    }
+    if (includeFieldRequirements && requirements.length > 0) {
+      finalView.leadFieldRequirements = requirements;
+    }
   }
 
   let responseView: Record<string, any> = finalView;
@@ -396,8 +428,12 @@ export async function fetchCalendarDetails(
           ? appointmentLocations.length
           : 0,
         formFieldsIncluded: includeFormFields,
-        appointmentUserDefinedFieldCount: Array.isArray(appointmentUserDefinedFields)
-          ? appointmentUserDefinedFields.length
+        fieldRequirementsIncluded: includeFieldRequirements,
+        appointmentUserDefinedFieldCount: Array.isArray(finalView?.appointmentUserDefinedFields)
+          ? finalView.appointmentUserDefinedFields.length
+          : 0,
+        leadFieldRequirementCount: Array.isArray(leadFieldRequirements)
+          ? leadFieldRequirements.length
           : 0,
       }, 
       enumerable: false 

@@ -11,8 +11,10 @@ import {
   mapCalendarFormFieldsToApi,
   mapCalendarThemeToPreferencePayload,
   mapEmailRemindersToPreferencePayload,
+  mapFrontendFieldsToRequirements,
   mapInAppRemindersToPreferencePayload,
   mapSmsRemindersToPreferencePayload,
+  splitAppointmentFormFields,
 } from "appointment-client";
 import { getSnapshot } from "mobx-state-tree";
 import { configureBlazeoFromEffective, useBlazeoConnection } from "./BlazeoConnectionSettings.jsx";
@@ -32,10 +34,10 @@ export function getExampleAppointmentLocations() {
 export function getExampleAppointmentReminders() {
   return [
     { channelType: 3, recipientType: 2, beforeEventTime: 45, unit: 1 },
-    { channelType: 1, recipientType: 1, beforeEventTime: 15, unit: 1 },
-    { channelType: 2, recipientType: 1, beforeEventTime: 10, unit: 1 },
-    { channelType: 2, recipientType: 2, beforeEventTime: 20, unit: 1 },
-    { channelType: 2, recipientType: 3, beforeEventTime: 30, unit: 1 },
+    { channelType: 1, recipientType: 0, beforeEventTime: 15, unit: 1 },
+    { channelType: 2, recipientType: 0, beforeEventTime: 10, unit: 1 },
+    { channelType: 2, recipientType: 1, beforeEventTime: 20, unit: 1 },
+    { channelType: 2, recipientType: 2, beforeEventTime: 30, unit: 1 },
   ];
 }
 
@@ -79,44 +81,49 @@ export function getExampleCalendarBOInput() {
       {
         fieldLabel: "First Name",
         fieldKey: "FirstName",
-        fieldId: "0702d225-45b1-4381-b24b-e788b17c2915",
+        fieldToolTipText: "",
         isRequired: true,
+        sortOrder: 0,
+        calendarId: 0,
+        isMandatory: true,
+      },
+      {
+        fieldLabel: "Last Name",
+        fieldKey: "LastName",
+        fieldToolTipText: "",
+        isRequired: true,
+        sortOrder: 0,
+        calendarId: 0,
         isMandatory: true,
       },
       {
         fieldLabel: "Email",
         fieldKey: "Email",
-        fieldId: "c2c08947-4050-41ba-8d59-3ccff8bbbd79",
+        fieldToolTipText: "",
         isRequired: true,
+        sortOrder: 0,
+        calendarId: 0,
         isMandatory: true,
       },
       {
-        fieldName: "checkbox",
-        fieldLabel: "checkbox",
-        fieldKey: "checkbox",
-        fieldType: "Checkbox",
-        fieldId: "8d01f985-7614-41cd-a3f8-5da9b0bb5dbe",
+        fieldLabel: "Lead Phone",
+        fieldKey: "Phone",
+        fieldToolTipText: "",
+        isRequired: false,
+        sortOrder: 0,
+        calendarId: 0,
+        id: "1782303418584",
+      },
+      {
+        fieldName: "lead custom date",
+        fieldLabel: "lead custom date",
+        fieldKey: "leadcustomdate",
+        fieldType: "Date",
+        fieldId: "cdb068c5-e711-4bda-abb2-e824991bf959",
         fieldSubType: 0,
-        description: "",
+        description: "Optional help for this field",
         isRequired: false,
         isMandatory: false,
-        leadCustomOptions: [{ value: "1" }, { value: "2" }],
-      },
-      {
-        fieldName: "Test dropdown",
-        fieldLabel: "Test dropdown",
-        fieldType: "Dropdown",
-        fieldId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        isRequired: false,
-        leadCustomOptions: [{ value: "A" }, { value: "B" }],
-      },
-      {
-        fieldName: "Test radio",
-        fieldLabel: "Test radio",
-        fieldType: "RadioButton",
-        fieldId: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-        isRequired: false,
-        leadCustomOptions: [{ value: "Yes" }, { value: "No" }],
       },
     ],
   };
@@ -181,7 +188,14 @@ export function CreateCalendarTab() {
   const formFieldsPreview = useMemo(() => {
     if (!parsedPayload || !calendarPayloadHasFormFields(parsedPayload)) return null;
     try {
-      return mapCalendarFormFieldsToApi(parsedPayload);
+      const fields = parsedPayload.appointmentUserDefinedFields ?? [];
+      const { basicFields, customFields } = splitAppointmentFormFields(fields);
+      return {
+        basicFieldRequirements: mapFrontendFieldsToRequirements(basicFields),
+        customFormFields: customFields.length
+          ? mapCalendarFormFieldsToApi({ appointmentUserDefinedFields: customFields })
+          : [],
+      };
     } catch {
       return null;
     }
@@ -194,7 +208,7 @@ export function CreateCalendarTab() {
     const hasEmail = (emailPreferencePreview?.length ?? 0) > 0;
     const hasInApp = (inAppPreferencePreview?.length ?? 0) > 0;
     const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
-    const hasForm = (formFieldsPreview?.length ?? 0) > 0;
+    const hasForm = (formFieldsPreview?.basicFieldRequirements?.length ?? 0) > 0 || (formFieldsPreview?.customFormFields?.length ?? 0) > 0;
     const hasLocations = parsedPayload != null && calendarPayloadHasLocations(parsedPayload);
     const relations = saveRelations
       ? "calendar + participants + opening hours"
@@ -209,7 +223,7 @@ export function CreateCalendarTab() {
         ? ` · then POST /preference/Calendar/{calendarId}/(${prefs.join(", ")})`
         : "";
     const form = hasForm
-      ? ` · then POST /CustomField/Form/Save from appointmentUserDefinedFields (${formFieldsPreview.length} field(s))`
+      ? ` · then POST /lead/fields/save (${formFieldsPreview.basicFieldRequirements?.length ?? 0} basic) and/or POST /CustomField/Form/Save (${formFieldsPreview.customFormFields?.length ?? 0} custom)`
       : "";
     const locations = hasLocations ? " · then save appointmentLocations" : "";
     return `Will save ${relations}${pref}${locations}${form}.`;
@@ -271,6 +285,10 @@ export function CreateCalendarTab() {
       const display = result.ok
         ? {
             ok: true,
+            calendarId: result.calendarId,
+            relationSaveFailed: result.relationSaveFailed,
+            relationSaveError: result.relationSaveError,
+            calendarView: result.calendarView,
             smsRemindersPreferenceSaved: result.smsRemindersPreferenceSaved,
             smsRemindersPreference: result.smsRemindersPreference,
             emailRemindersPreferenceSaved: result.emailRemindersPreferenceSaved,
@@ -283,12 +301,20 @@ export function CreateCalendarTab() {
             openingHoursSaved: result.openingHoursSaved,
             appointmentFormSaved: result.appointmentFormSaved,
             appointmentFormFields: result.appointmentFormFields,
-            calendar: getSnapshot(result.calendar),
+            fieldRequirementsSaved: result.fieldRequirementsSaved,
+            fieldRequirements: result.fieldRequirements,
+            calendar: result.calendarSnapshot ?? getSnapshot(result.calendar),
             apiResponse: result.apiResponse,
           }
         : result;
       setOutput(JSON.stringify(display, null, 2));
-      if (!result.ok) setError(mapBlazeoDemoError(result.error));
+      if (!result.ok) {
+        setError(mapBlazeoDemoError(result.error));
+      } else if (result.relationSaveFailed) {
+        setError(mapBlazeoDemoError(result.relationSaveError));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -351,14 +377,31 @@ export function CreateCalendarTab() {
         </div>
       ) : null}
 
-      {formFieldsPreview?.length ? (
+      {formFieldsPreview &&
+      (formFieldsPreview.basicFieldRequirements?.length || formFieldsPreview.customFormFields?.length) ? (
         <div className="card">
           <h2>Form fields preview</h2>
           <p className="muted small">
-            <code>appointmentUserDefinedFields</code> on the calendar → transformed for{" "}
-            <code>POST /CustomField/Form/Save</code> after create (uses new <code>calendarId</code>).
+            <code>appointmentUserDefinedFields</code> without <code>fieldId</code> →{" "}
+            <code>POST /lead/fields/save</code>. Rows with <code>fieldId</code> →{" "}
+            <code>POST /CustomField/Form/Save</code> (after create, using new <code>calendarId</code>).
           </p>
-          <pre className="pre-block">{JSON.stringify(formFieldsPreview, null, 2)}</pre>
+          {formFieldsPreview.basicFieldRequirements?.length ? (
+            <>
+              <h3>Basic lead fields</h3>
+              <pre className="pre-block">
+                {JSON.stringify(formFieldsPreview.basicFieldRequirements, null, 2)}
+              </pre>
+            </>
+          ) : null}
+          {formFieldsPreview.customFormFields?.length ? (
+            <>
+              <h3>Custom fields</h3>
+              <pre className="pre-block">
+                {JSON.stringify(formFieldsPreview.customFormFields, null, 2)}
+              </pre>
+            </>
+          ) : null}
         </div>
       ) : null}
 

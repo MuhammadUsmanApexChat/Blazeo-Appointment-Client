@@ -1,4 +1,3 @@
-import { getSnapshot } from "mobx-state-tree";
 import { calendarPayloadHasEventReminders } from "../preference/mapEventReminderPreference.js";
 import { calendarPayloadHasTheme } from "../preference/mapCalendarThemePreference.js";
 import { calendarPayloadHasFormFields } from "./mapCalendarForm.js";
@@ -6,6 +5,8 @@ import { calendarPayloadHasLocations } from "./mapCalendarLocation.js";
 import { saveCalendarRelationsAfterSave } from "./saveCalendarRelationsAfterSave.js";
 import { addParticipantToCalendar, removeParticipantFromCalendar, saveCalendarOpeningHoursBatch } from "./blazeoCalendarRelationMethods.js";
 import { createCalendarAsync, updateCalendarAsync, deleteCalendarAsync } from "./createCalendar.js";
+import { buildRelationSaveFailure } from "./buildCalendarCreateResult.js";
+import { resolveCalendarIdAfterSave } from "./resolveCalendarIdAfterSave.js";
 function isFailureStatus(res) {
     return res.status !== "success" && res.status !== "Success";
 }
@@ -47,18 +48,18 @@ export function resolveParticipantIdForOpeningHour(openingHour) {
         return direct;
     return undefined;
 }
-function effectiveCalendarId(calendarNode, input) {
-    const snap = getSnapshot(calendarNode);
-    const fromNode = snap.calendarId?.trim();
-    if (fromNode && fromNode !== "new")
-        return fromNode;
-    return (input.calendarId?.trim() || undefined);
+function effectiveCalendarId(calendarNode, input, apiResponse) {
+    return resolveCalendarIdAfterSave(calendarNode, input, apiResponse);
 }
 async function saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, baseSuccess, replaceLocationsOnSave = false) {
     if (options.localOnly) {
         return baseSuccess;
     }
-    return saveCalendarRelationsAfterSave(calendar, calendarIdStr, { ...options, replaceLocationsOnSave }, baseSuccess);
+    return saveCalendarRelationsAfterSave(calendar, calendarIdStr, {
+        ...options,
+        replaceLocationsOnSave,
+        preserveBaseOnRelationFailure: Boolean(options.preserveBaseOnRelationFailure),
+    }, baseSuccess);
 }
 export function calendarPayloadHasRelations(calendar) {
     return (calendarPayloadHasEventReminders(calendar) ||
@@ -72,112 +73,111 @@ export function calendarPayloadHasRelations(calendar) {
  * per day (`POST /Calendar/Participant/Availability/OpeningHour/Save`).
  */
 export async function createCalendarWithRelationsAsync(calendar, options = {}) {
+    const createOptions = { ...options, preserveBaseOnRelationFailure: true };
     const hasMembers = (calendar.members?.length ?? 0) > 0;
     const hasHours = (calendar.openingHours?.length ?? 0) > 0;
-    if (!hasMembers && !hasHours) {
-        const r = await createCalendarAsync(calendar, options);
-        if (!r.ok)
-            return r;
-        const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
-        if (!calendarIdStr) {
+    try {
+        if (!hasMembers && !hasHours) {
+            const r = await createCalendarAsync(calendar, createOptions);
+            if (!r.ok)
+                return r;
+            const calendarIdStr = effectiveCalendarId(r.calendar, calendar, r.apiResponse);
+            if (!calendarIdStr) {
+                return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+            }
+            return saveRelationsAfterCalendarSave(calendar, calendarIdStr, createOptions, { ...r, calendarId: calendarIdStr, membersAdded: 0, openingHoursSaved: 0 });
+        }
+        if (createOptions.localOnly) {
+            const r = await createCalendarAsync(calendar, createOptions);
+            if (!r.ok)
+                return r;
             return { ...r, membersAdded: 0, openingHoursSaved: 0 };
         }
-        const withPrefs = await saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, { ...r, membersAdded: 0, openingHoursSaved: 0 });
-        return withPrefs;
+        const created = await createCalendarAsync(calendar, createOptions);
+        if (!created.ok)
+            return created;
+        return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created, createOptions, false, true);
     }
-    if (options.localOnly) {
-        const r = await createCalendarAsync(calendar, options);
-        if (!r.ok)
-            return r;
-        return { ...r, membersAdded: 0, openingHoursSaved: 0 };
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
     }
-    const created = await createCalendarAsync(calendar, options);
-    if (!created.ok)
-        return created;
-    return runMembersAndOpeningHoursAfterCalendarSave(calendar, created.calendar, created, options);
+}
+function relationFailure(baseSuccess, calendarId, error, options, apiResponse) {
+    if (options?.preserveBaseOnRelationFailure && baseSuccess?.ok) {
+        return buildRelationSaveFailure(baseSuccess, calendarId, error, apiResponse);
+    }
+    return {
+        ok: false,
+        error,
+        ...(apiResponse != null ? { apiResponse } : {}),
+    };
 }
 /**
  * After calendar `create` or `update`, add members and opening hours (same order as Apex facade).
  */
-async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode, baseSuccess, options = {}, replaceLocationsOnSave = false) {
-    const calendarIdStr = effectiveCalendarId(calendarNode, calendar);
+async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode, baseSuccess, options = {}, replaceLocationsOnSave = false, isCreate = false) {
+    const calendarIdStr = effectiveCalendarId(calendarNode, calendar, baseSuccess?.apiResponse);
     if (!calendarIdStr) {
-        return {
-            ok: false,
-            error: "Could not resolve calendar id after save. Ensure the API returned a calendar id.",
-        };
+        return relationFailure(baseSuccess, "", "Could not resolve calendar id after save. Ensure the API returned a calendar id.", options);
     }
-    // 1. Participant Reconciliation (Diff-based)
-    // Fetch current participants to see who needs to be removed
+    // 1. Participant reconciliation — skip fetch on create (new calendar has no members yet).
     let currentParticipantIds = [];
-    try {
-        const currentRaw = await calendarNode.getParticipants();
-        currentParticipantIds = unwrapParticipantIds(currentRaw);
-    }
-    catch (err) {
-        console.warn("[calendarCreation] Failed to fetch current participants for reconciliation. Proceeding with additive mode.", err);
+    if (!isCreate) {
+        try {
+            const currentRaw = await calendarNode.getParticipants();
+            currentParticipantIds = unwrapParticipantIds(currentRaw);
+        }
+        catch (err) {
+            console.warn("[calendarCreation] Failed to fetch current participants for reconciliation. Proceeding with additive mode.", err);
+        }
     }
     const desiredMembers = calendar.members ?? [];
     const desiredIds = new Set(desiredMembers.map((m) => normalizeParticipantGuid(m.id)).filter(Boolean));
-    // A. Remove missing members
-    for (const existingId of currentParticipantIds) {
-        if (!desiredIds.has(existingId)) {
-            try {
-                await removeParticipantFromCalendar(calendarNode, existingId);
-            }
-            catch (err) {
-                console.warn(`[calendarCreation] Failed to remove participant ${existingId}:`, err);
+    if (!isCreate) {
+        for (const existingId of currentParticipantIds) {
+            if (!desiredIds.has(existingId)) {
+                try {
+                    await removeParticipantFromCalendar(calendarNode, existingId);
+                }
+                catch (err) {
+                    console.warn(`[calendarCreation] Failed to remove participant ${existingId}:`, err);
+                }
             }
         }
     }
-    // B. Add new members
     const existingIdSet = new Set(currentParticipantIds);
     let membersAdded = 0;
     for (const m of desiredMembers) {
         const pid = normalizeParticipantGuid(m.id);
         if (!pid) {
-            return {
-                ok: false,
-                error: `Member id ${m.id}: thirdPartyMemberId is required to add a participant.`,
-            };
+            return relationFailure(baseSuccess, calendarIdStr, `Member id ${m.id}: thirdPartyMemberId is required to add a participant.`, options);
         }
-        // Only add if not already there
         if (!existingIdSet.has(pid)) {
             const res = await addParticipantToCalendar(calendarNode, pid);
             if (isFailureStatus(res)) {
                 const msg = res.message ??
                     (typeof res.data === "string" ? res.data : undefined) ??
                     JSON.stringify(res);
-                return {
-                    ok: false,
-                    error: `addParticipant failed for member ${m.id}: ${msg}`,
-                    apiResponse: res,
-                };
+                return relationFailure(baseSuccess, calendarIdStr, `addParticipant failed for member ${m.id}: ${msg}`, options, res);
             }
             membersAdded += 1;
         }
     }
-    // 2. Save Opening Hours (Plan V2: Grouped by participant with explicit off-days per slot)
     const openingHours = calendar.openingHours ?? [];
     const hoursByParticipant = new Map();
     for (const oh of openingHours) {
         const participantId = resolveParticipantIdForOpeningHour(oh);
         if (!participantId) {
-            return {
-                ok: false,
-                error: `Opening hour id ${oh.id}: participantId is required.`,
-            };
+            return relationFailure(baseSuccess, calendarIdStr, `Opening hour id ${oh.id}: participantId is required.`, options);
         }
         if (!hoursByParticipant.has(participantId)) {
             hoursByParticipant.set(participantId, []);
         }
-        // Plan V2 Logic: For every opening hour object, generate EXACTLY 7 entries (days 0-6).
-        // If the day is in oh.days, it's ON. If not, it's OFF.
         const activeDays = oh.days ?? [];
-        const openingHourId = oh.openingHourId?.trim() || newOpeningHourId();
         for (let day = 0; day <= 6; day++) {
             const isIncluded = activeDays.includes(day);
-            const isOff = isIncluded ? !!oh.off : true; // If not in days array, it's explicitly OFF
+            const isOff = isIncluded ? !!oh.off : true;
             hoursByParticipant.get(participantId)?.push({
                 calendarId: calendarIdStr,
                 participantId,
@@ -187,9 +187,6 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode
                 endHour: oh.endHour,
                 endMinute: oh.endMinute,
                 off: isOff,
-                // Plan V2 Optimization: Generate a unique ID for EVERY day record.
-                // This prevents the backend from deduplicating/overwriting when multiple 
-                // records for the same participant + slot are sent in one batch.
                 openingHourId: newOpeningHourId(),
             });
         }
@@ -198,26 +195,21 @@ async function runMembersAndOpeningHoursAfterCalendarSave(calendar, calendarNode
     for (const [participantId, payload] of hoursByParticipant.entries()) {
         if (payload.length === 0)
             continue;
-        // Plan V2 Optimization: Clear existing records for this participant first.
-        // This ensures that when we save the new batch (with unique per-day IDs), 
-        // we don't leak orphaned records or create duplicates during updates.
-        await calendarNode.removeParticipantOpeningHours(participantId);
-        // Use the batch save method (plural)
+        if (!isCreate) {
+            await calendarNode.removeParticipantOpeningHours(participantId);
+        }
         const res = await saveCalendarOpeningHoursBatch(calendarNode, payload);
         if (isFailureStatus(res)) {
             const msg = res.message ??
                 (typeof res.data === "string" ? res.data : undefined) ??
                 JSON.stringify(res);
-            return {
-                ok: false,
-                error: `saveOpeningHours batch failed for participant ${participantId}: ${msg}`,
-                apiResponse: res,
-            };
+            return relationFailure(baseSuccess, calendarIdStr, `saveOpeningHours batch failed for participant ${participantId}: ${msg}`, options, res);
         }
         openingHoursSaved += payload.length;
     }
     const withPrefs = await saveRelationsAfterCalendarSave(calendar, calendarIdStr, options, {
         ...baseSuccess,
+        calendarId: calendarIdStr,
         membersAdded,
         openingHoursSaved,
     }, replaceLocationsOnSave);
@@ -235,7 +227,7 @@ export async function updateCalendarWithRelationsAsync(calendar, options = {}) {
         const r = await updateCalendarAsync(calendar, options);
         if (!r.ok)
             return r;
-        const calendarIdStr = effectiveCalendarId(r.calendar, calendar);
+        const calendarIdStr = effectiveCalendarId(r.calendar, calendar, r.apiResponse);
         if (!calendarIdStr) {
             return { ...r, membersAdded: 0, openingHoursSaved: 0 };
         }

@@ -6,6 +6,7 @@ import {
   resolveApiTypeName,
   type FrontendCalendarFormField,
 } from "../customField/mapFormFieldsToApi.js";
+import { resolveLeadColumnFromField } from "./mapFieldRequirements.js";
 
 export type { FrontendCalendarFormField };
 function pick<T>(obj: any, ...keys: string[]): T | undefined {
@@ -51,8 +52,6 @@ export const API_TYPE_TO_FIELD_SUBTYPE: Record<string, number> = {
   MultiselectList: 310,
 };
 
-const LEAD_CUSTOM_FIELD_TYPE = 3;
-
 function labelToFieldKey(label: string): string {
   const parts = String(label ?? "")
     .trim()
@@ -60,6 +59,41 @@ function labelToFieldKey(label: string): string {
     .filter(Boolean);
   if (!parts.length) return "Field";
   return parts.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join("");
+}
+
+/** Portal custom-field `fieldKey` — lowercase slug, e.g. `"lead custom date"` → `leadcustomdate`. */
+function labelToCustomFieldKey(label: string): string {
+  return String(label ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isStandardBookingFieldRow(label: string, typeName: string): boolean {
+  const fieldKey = labelToFieldKey(label);
+  if (resolveLeadColumnFromField({ fieldKey, fieldLabel: label })) return true;
+  const token = fieldKey.toLowerCase();
+  if (typeName === "Email" && token === "email") return true;
+  if (typeName === "Phone" && (token === "phone" || token === "leadphone")) return true;
+  return false;
+}
+
+function shouldMapAsCustomUdfField(
+  src: Record<string, unknown>,
+  label: string,
+  typeName: string,
+  fieldId: string
+): boolean {
+  if (isStandardBookingFieldRow(label, typeName)) return false;
+  if (fieldId) return true;
+  if (hasCustomFieldOptions(src)) return true;
+  const fieldSubType = API_TYPE_TO_FIELD_SUBTYPE[typeName];
+  return (
+    fieldSubType != null &&
+    typeName !== "Text" &&
+    typeName !== "Email" &&
+    typeName !== "Phone"
+  );
 }
 
 function mapApiOptionsToLeadCustom(options: unknown[] | undefined): { value: string }[] {
@@ -200,6 +234,12 @@ export function mapApiFormFieldToClient(row: unknown): Record<string, unknown> |
     ...optionLists,
   };
 
+  const helpText = pick<string>(src, "helpText", "HelpText", "description", "Description");
+  if (helpText != null && String(helpText).trim() !== "") {
+    client.helpText = String(helpText).trim();
+    client.HelpText = String(helpText).trim();
+  }
+
   return client;
 }
 
@@ -237,6 +277,7 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
     pick(src, "CustomFieldId", "customFieldId", "DataId", "dataId") ?? ""
   ).trim();
   const isRequired = Boolean(pick(src, "IsRequired", "isRequired", "isMandatory") ?? false);
+  const fieldSubType = API_TYPE_TO_FIELD_SUBTYPE[typeName];
   const optionsForLead =
     optionLists.DropdownOptions ??
     optionLists.RadioButtonOptions ??
@@ -244,26 +285,25 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
     optionLists.multiselectListOptions ??
     [];
 
-  const fieldSubType = API_TYPE_TO_FIELD_SUBTYPE[typeName];
-  const isLeadStyle =
-    fieldSubType != null &&
-    (hasCustomFieldOptions(src) ||
-      typeName === "Dropdown" ||
-      typeName === "RadioButton" ||
-      typeName === "Checkbox" ||
-      typeName === "MultiselectList");
-
-  if (isLeadStyle) {
+  if (shouldMapAsCustomUdfField(src, label, typeName, fieldId)) {
+    const helpText = pick<string>(src, "helpText", "HelpText", "description", "Description");
+    const customKey = labelToCustomFieldKey(label) || labelToFieldKey(label);
     return {
       fieldName: label || typeName,
-      fieldType: LEAD_CUSTOM_FIELD_TYPE,
-      fieldSubType,
-      description: label || undefined,
+      fieldLabel: label || typeName,
+      fieldKey: customKey,
+      fieldType: typeName,
+      fieldSubType: fieldSubType ?? 0,
       isImportant: false,
       isRequired,
       isMandatory: isRequired,
       ...(fieldId ? { fieldId } : {}),
-      leadCustomOptions: mapApiOptionsToLeadCustom(optionsForLead),
+      ...(helpText != null && String(helpText).trim() !== ""
+        ? { description: String(helpText).trim() }
+        : {}),
+      ...(optionsForLead.length
+        ? { leadCustomOptions: mapApiOptionsToLeadCustom(optionsForLead) }
+        : {}),
     };
   }
 
