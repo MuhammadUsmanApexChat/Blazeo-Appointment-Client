@@ -1,4 +1,5 @@
 import type { FieldTypeDefinition } from "./fetchFieldTypes.js";
+import { pickForwardedFieldKind } from "../calendar/mapFieldRequirements.js";
 
 /** Frontend / lead `fieldSubType` → Blazeo `Type` name (POST /CustomField/Form/Save). */
 export const FIELD_SUBTYPE_TO_API_TYPE: Record<number, string> = {
@@ -129,6 +130,17 @@ function attachHelpTextToApiPayload(
   payload.HelpText = helpText;
   delete payload.description;
   delete payload.Description;
+}
+
+/** Forward `kind` / `Kind` on custom fields only (unchanged value). */
+function copyPassthroughFrontendProps(
+  payload: FieldTypeDefinition,
+  row: Record<string, unknown>
+): void {
+  const kind = pickForwardedFieldKind(row);
+  if (kind === undefined) return;
+  payload.kind = kind;
+  payload.Kind = kind;
 }
 
 function resolveIds(row: Record<string, unknown>): { dataId: string; customFieldId: string } {
@@ -263,6 +275,7 @@ export function mapFrontendFormFieldToApi(row: unknown): FieldTypeDefinition | n
   if (isApiFormFieldRow(src)) {
     const payload = { ...src } as FieldTypeDefinition;
     attachHelpTextToApiPayload(payload, src);
+    copyPassthroughFrontendProps(payload, src);
     return payload;
   }
 
@@ -281,6 +294,7 @@ export function mapFrontendFormFieldToApi(row: unknown): FieldTypeDefinition | n
 
   attachTypeSpecificLists(payload, src, apiType);
   attachHelpTextToApiPayload(payload, src);
+  copyPassthroughFrontendProps(payload, src);
   return payload;
 }
 

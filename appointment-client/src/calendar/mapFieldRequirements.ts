@@ -92,6 +92,32 @@ export function isBookableLeadField(field: unknown): boolean {
   return resolveLeadColumnFromField(field) != null;
 }
 
+/** `kind` applies to custom fields only — not bookable lead rows. */
+export function shouldForwardFieldKind(field: unknown): boolean {
+  if (field == null || typeof field !== "object") return false;
+  const row = field as Record<string, unknown>;
+  if (isBookableLeadField(row)) return false;
+  if (row.kind === 2 || row.Kind === 2) return false;
+  if (hasFormFieldId(row)) return true;
+  const kind = row.kind ?? row.Kind;
+  if (kind === 1) return true;
+  return false;
+}
+
+export function pickForwardedFieldKind(
+  field: unknown
+): number | string | undefined {
+  if (!shouldForwardFieldKind(field)) return undefined;
+  const row = field as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(row, "kind")) {
+    return row.kind as number | string;
+  }
+  if (Object.prototype.hasOwnProperty.call(row, "Kind")) {
+    return row.Kind as number | string;
+  }
+  return undefined;
+}
+
 function resolveRequired(row: Record<string, unknown>): boolean {
   return Boolean(
     pick(row, "isRequired", "IsRequired", "isMandatory", "IsMandatory") ?? false

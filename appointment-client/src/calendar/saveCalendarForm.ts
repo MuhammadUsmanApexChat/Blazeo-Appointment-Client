@@ -70,9 +70,9 @@ export type SaveCalendarAppointmentFormResult =
 /**
  * After calendar create/update: save `appointmentUserDefinedFields` from the calendar payload.
  *
- * Rows without `fieldId` that map to bookable lead columns are saved via
+ * Rows without `fieldId` that map to bookable lead columns are also saved via
  * `LeadModel.saveFieldRequirements`. Rows with `fieldId` (and other custom shapes) are saved via
- * `POST /CustomField/Form/Save`.
+ * `POST /CustomField/Form/Save` (`kind` on custom fields only).
  */
 export async function saveCalendarAppointmentForm(
   calendarId: string,

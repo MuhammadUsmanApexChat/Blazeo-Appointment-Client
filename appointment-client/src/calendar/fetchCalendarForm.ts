@@ -1,6 +1,5 @@
-import { blazeoCustomFieldGet } from "../customField/customFieldHttp.js";
-import type { BlazeoCustomFieldConnection } from "../customField/customFieldHttp.js";
-import {
+import { getCustomFieldFormApi } from "../customField/customFieldFormHttp.js";
+import type { BlazeoCustomFieldConnection } from "../customField/customFieldHttp.js";import {
   mapApiFormFieldsToClient,
   mapApiFormFieldsToFrontend,
   unwrapFormGetData,
@@ -33,8 +32,7 @@ export async function fetchCalendarAppointmentForm(
     query.data_id = String(dataId).trim();
   }
 
-  const res = await blazeoCustomFieldGet("/CustomField/Form/Get", query, connection);
-  if (res.status !== "success") return null;
+  const res = await getCustomFieldFormApi(id, query, connection);  if (res.status !== "success") return null;
 
   const rows = unwrapFormGetData(res.data);
   return format === "frontend"

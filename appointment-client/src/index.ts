@@ -4,9 +4,11 @@ export {
   initializeAppointmentClient,
   isAppointmentClientConfigured,
 } from "./config/initializeAppointmentClient.js";
+export type { AppointmentClientConfig } from "./config/initializeAppointmentClient.js";
 export { syncBlazeoConnection } from "./config/syncBlazeoConnection.js";
 export { ensureBlazeoHttpReady } from "./config/ensureBlazeoHttpReady.js";
 export type { EnsureBlazeoHttpOptions } from "./config/ensureBlazeoHttpReady.js";
+export type { BlazeoConnectionOptions } from "./config/blazeoConnection.js";
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
 export { 
@@ -296,9 +298,21 @@ import {
   LeadModel as CoreLeadModel,
   PreferenceModel as CorePreferenceModel,
   PreferenceScope,
-  configure, 
-  getConfig 
+  getConfig,
 } from "@blazeo.com/calendar-client";
+import {
+  configureAppointmentClient as configure,
+  setAccessToken,
+  setGetAccessToken,
+  clearAccessToken,
+  clearAuth,
+  getAuth,
+  ensureValidAccessToken,
+  buildAuthHeaders,
+  isAccessTokenExpired,
+  DEFAULT_TOKEN_REFRESH_SKEW_MS,
+} from "./http/blazeoAuth.js";
+export type { AuthState } from "./http/blazeoAuth.js";
 
 // Enriched CalendarModel
 export const CalendarModel = {
@@ -341,7 +355,16 @@ export {
   CoreEventModel,
   CoreParticipantModel,
   configure, 
-  getConfig 
+  getConfig,
+  setAccessToken,
+  setGetAccessToken,
+  clearAccessToken,
+  clearAuth,
+  getAuth,
+  ensureValidAccessToken,
+  buildAuthHeaders,
+  isAccessTokenExpired,
+  DEFAULT_TOKEN_REFRESH_SKEW_MS,
 };
 
 export const packageName = "@blazeo.com/appointment-client";

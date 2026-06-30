@@ -1,5 +1,6 @@
-import { CalendarModel, configure, getConfig } from "@blazeo.com/calendar-client";
+import { CalendarModel, getConfig } from "@blazeo.com/calendar-client";
 import { blazeoClientConfig } from "../config/blazeoClientDefaults.js";
+import { configureAppointmentClient, getAuth } from "../http/blazeoAuth.js";
 import { buildCalendarCreateSuccess } from "./buildCalendarCreateResult.js";
 import { mapCalendarBOToSnapshot } from "./mapCalendarToBlazeoSnapshot.js";
 
@@ -47,6 +48,11 @@ export function buildModelEnv(baseUrl: string | undefined, consumer: string | un
   if (cfg?.getDefaultOffset != null) {
     env.getDefaultOffset = cfg.getDefaultOffset;
   }
+  const auth = getAuth();
+  if (auth.accessToken != null) env.accessToken = auth.accessToken;
+  if (auth.tokenExpiresAt != null) env.tokenExpiresAt = auth.tokenExpiresAt;
+  if (cfg?.accessToken != null) env.accessToken = cfg.accessToken;
+  if (cfg?.tokenExpiresAt != null) env.tokenExpiresAt = cfg.tokenExpiresAt;
   return env;
 }
 
@@ -58,7 +64,7 @@ export async function createCalendarAsync(calendar: any, options: any = {}) {
   try {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
     if (resolvedBase) {
-      configure({
+      configureAppointmentClient({
         baseUrl: resolvedBase,
         ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
       });
@@ -119,7 +125,7 @@ export async function updateCalendarAsync(calendar: any, options: any = {}) {
   try {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
     if (resolvedBase) {
-      configure({
+      configureAppointmentClient({
         baseUrl: resolvedBase,
         ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
       });
@@ -191,7 +197,7 @@ export async function deleteCalendarAsync(calendarId: string, options: any = {})
 
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
     if (resolvedBase) {
-      configure({
+      configureAppointmentClient({
         baseUrl: resolvedBase,
         ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
       });

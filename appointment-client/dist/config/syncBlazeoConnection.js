@@ -1,18 +1,15 @@
-import { configure } from "@blazeo.com/calendar-client";
+import { configureAppointmentClient } from "../http/blazeoAuth.js";
 /**
- * Writes `baseUrl` / `consumer` into the global `@blazeo.com/calendar-client` `configure()` store.
+ * Writes connection + auth into calendar-client `configure()` and the local auth store.
  * Returns whether anything was applied (skipped when `baseUrl` is empty after trim).
  */
 export function syncBlazeoConnection(config) {
     const baseUrl = config.baseUrl?.trim().replace(/\/+$/, "");
     if (!baseUrl)
         return false;
-    configure({
+    configureAppointmentClient({
+        ...config,
         baseUrl,
-        ...(config.consumer != null && String(config.consumer).trim() !== ""
-            ? { consumer: String(config.consumer).trim() }
-            : {}),
-        ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     return true;
 }

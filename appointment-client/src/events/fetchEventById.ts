@@ -1,4 +1,5 @@
-import { EventModel, configure } from "@blazeo.com/calendar-client";
+import { EventModel } from "@blazeo.com/calendar-client";
+import { configureAppointmentClient } from "../http/blazeoAuth.js";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
 import { mapAppointmentEventToPlain } from "./mapAppointmentToEventSnapshot.js";
@@ -13,7 +14,7 @@ function isFailureStatus(res: any) {
 
 function ensureConfigure(resolvedBase: string | undefined, resolvedConsumer: string | undefined) {
   if (resolvedBase) {
-    configure({
+    configureAppointmentClient({
       baseUrl: resolvedBase,
       ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
     });

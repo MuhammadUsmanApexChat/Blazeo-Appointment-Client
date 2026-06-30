@@ -1,10 +1,8 @@
 import { PreferenceModel } from "@blazeo.com/calendar-client";
 import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 
-export type BlazeoPreferenceConnection = {
-  baseUrl?: string;
-  consumer?: string;
-};
+export type BlazeoPreferenceConnection = BlazeoConnectionOptions;
 
 /**
  * Save a preference: `PreferenceModel.set` → `POST /preference/{scope}/{key}/{option}`.

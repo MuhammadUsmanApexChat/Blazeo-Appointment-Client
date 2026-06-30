@@ -1,11 +1,8 @@
 import { getConfig } from "@blazeo.com/calendar-client";
 import { syncBlazeoConnection } from "./syncBlazeoConnection.js";
+import type { AppointmentClientConfig } from "./syncBlazeoConnection.js";
 
-export interface AppointmentClientConfig {
-  baseUrl: string;
-  consumer?: string;
-  fetch?: typeof fetch;
-}
+export type { AppointmentClientConfig } from "./syncBlazeoConnection.js";
 
 let isConfigured = false;
 

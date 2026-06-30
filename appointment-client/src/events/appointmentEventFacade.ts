@@ -1,4 +1,5 @@
-import { EventModel, configure } from "@blazeo.com/calendar-client";
+import { EventModel } from "@blazeo.com/calendar-client";
+import { configureAppointmentClient } from "../http/blazeoAuth.js";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";import {
   mapAppointmentEventToPlain,
   mapAppointmentToEventSnapshot,
@@ -14,7 +15,7 @@ function isFailureStatus(res: any) {
 
 function ensureConfigure(resolvedBase: string | undefined, resolvedConsumer: string | undefined) {
   if (resolvedBase) {
-    configure({
+    configureAppointmentClient({
       baseUrl: resolvedBase,
       ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
     });
@@ -32,7 +33,7 @@ async function runEventMutation(input: any, mode: "create" | "reschedule", optio
     return {
       ok: false,
       error:
-        "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+        "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
     };
   }
 
@@ -155,7 +156,7 @@ export async function updateAppointmentEventAsync(input: any, options: any = {})
       return {
         ok: false,
         error:
-          "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+          "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
       };
     }
 
@@ -223,7 +224,7 @@ export async function cancelAppointmentEventAsync(appointmentEventId: string, op
       return {
         ok: false,
         error:
-          "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+          "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
       };
     }
 

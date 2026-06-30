@@ -6,7 +6,7 @@ import {
   resolveApiTypeName,
   type FrontendCalendarFormField,
 } from "../customField/mapFormFieldsToApi.js";
-import { resolveLeadColumnFromField } from "./mapFieldRequirements.js";
+import { pickForwardedFieldKind, resolveLeadColumnFromField, shouldForwardFieldKind } from "./mapFieldRequirements.js";
 
 export type { FrontendCalendarFormField };
 function pick<T>(obj: any, ...keys: string[]): T | undefined {
@@ -67,6 +67,15 @@ function labelToCustomFieldKey(label: string): string {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+
+function kindFromRow(src: Record<string, unknown>, fieldKey?: string): Record<string, unknown> {
+  const kind = pickForwardedFieldKind({
+    ...src,
+    ...(fieldKey ? { fieldKey } : {}),
+  });
+  return kind !== undefined ? { kind } : {};
 }
 
 function isStandardBookingFieldRow(label: string, typeName: string): boolean {
@@ -240,6 +249,11 @@ export function mapApiFormFieldToClient(row: unknown): Record<string, unknown> |
     client.HelpText = String(helpText).trim();
   }
 
+  const kind = kindFromRow(src, labelToFieldKey(label));
+  if (kind.kind !== undefined) {
+    client.kind = kind.kind;
+  }
+
   return client;
 }
 
@@ -265,7 +279,12 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
       src.fieldName != null ||
       src.FieldLabel != null
     ) {
-      return { ...src } as FrontendCalendarFormField;
+      const out = { ...src } as FrontendCalendarFormField;
+      if (!shouldForwardFieldKind(src)) {
+        delete out.kind;
+        delete out.Kind;
+      }
+      return out;
     }
     return null;
   }
@@ -298,6 +317,7 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
       isRequired,
       isMandatory: isRequired,
       ...(fieldId ? { fieldId } : {}),
+      ...kindFromRow(src, customKey),
       ...(helpText != null && String(helpText).trim() !== ""
         ? { description: String(helpText).trim() }
         : {}),

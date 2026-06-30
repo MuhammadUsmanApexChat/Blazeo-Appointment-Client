@@ -1,4 +1,5 @@
-import { EventModel, configure } from "@blazeo.com/calendar-client";
+import { EventModel } from "@blazeo.com/calendar-client";
+import { configureAppointmentClient } from "../http/blazeoAuth.js";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
 import { mapAppointmentEventToPlain, mapAppointmentToEventSnapshot, } from "./mapAppointmentToEventSnapshot.js";
 import { mapBlazeoEventToClientEvent } from "./mapBlazeoEventToClientEvent.js";
@@ -12,7 +13,7 @@ function isFailureStatus(res) {
 }
 function ensureConfigure(resolvedBase, resolvedConsumer) {
     if (resolvedBase) {
-        configure({
+        configureAppointmentClient({
             baseUrl: resolvedBase,
             ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
         });
@@ -26,7 +27,7 @@ async function runEventMutation(input, mode, options) {
     if (!options.localOnly && !baseUrl) {
         return {
             ok: false,
-            error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+            error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
         };
     }
     const snapshot = mapAppointmentToEventSnapshot(input, mode);
@@ -130,7 +131,7 @@ export async function updateAppointmentEventAsync(input, options = {}) {
         if (!options.localOnly && !baseUrl) {
             return {
                 ok: false,
-                error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+                error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
             };
         }
         const snapshot = mapAppointmentToEventSnapshot(input, "update");
@@ -191,7 +192,7 @@ export async function cancelAppointmentEventAsync(appointmentEventId, options = 
         if (!options.localOnly && !baseUrl) {
             return {
                 ok: false,
-                error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configure({ baseUrl })`.",
+                error: "baseUrl is missing. Set `blazeoClientConfig.baseUrl` in `appointment-client/src/config/blazeoClientDefaults.ts` or call `configureAppointmentClient({ baseUrl })`.",
             };
         }
         if (options.localOnly) {

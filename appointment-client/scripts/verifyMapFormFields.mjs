@@ -125,6 +125,48 @@ if (!firstNameFromApi || firstNameFromApi.fieldKey !== "FirstName" || firstNameF
   process.exit(1);
 }
 
+const withKind = mapFrontendFormFieldsToApi([
+  {
+    fieldName: "DOB",
+    fieldLabel: "DOB",
+    fieldKey: "DOB",
+    fieldType: "Date",
+    fieldId: "014ffabd-3c63-421c-b482-9ce6a65aee53",
+    fieldSubType: 0,
+    kind: 1,
+    isRequired: false,
+    isMandatory: false,
+  },
+  {
+    fieldLabel: "First Name",
+    fieldKey: "FirstName",
+    kind: 2,
+    isRequired: true,
+    isMandatory: true,
+  },
+]);
+if (withKind[0].kind !== 1 || withKind[0].Type !== "Date") {
+  console.error("kind on custom field save mapping failed:", withKind[0]);
+  process.exit(1);
+}
+if (withKind[1].kind != null) {
+  console.error("kind should not be on lead field API payload:", withKind[1]);
+  process.exit(1);
+}
+
+const leadFromApi = mapApiFormFieldToFrontend({
+  Label: "First Name",
+  Type: "Text",
+  CustomFieldId: "0702d225-45b1-4381-b24b-e788b17c2915",
+  DataId: "0702d225-45b1-4381-b24b-e788b17c2915",
+  IsRequired: true,
+  kind: 2,
+});
+if (!leadFromApi || leadFromApi.kind != null) {
+  console.error("lead field fetch should not include kind:", leadFromApi);
+  process.exit(1);
+}
+
 const alreadyApi = [
   {
     Type: "Text",

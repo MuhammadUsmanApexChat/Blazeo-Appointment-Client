@@ -22,6 +22,7 @@ const frontendFields = [
     sortOrder: 0,
     calendarId: 0,
     isMandatory: true,
+    kind: 2,
   },
   {
     fieldLabel: "Last Name",
@@ -31,6 +32,7 @@ const frontendFields = [
     sortOrder: 0,
     calendarId: 0,
     isMandatory: true,
+    kind: 2,
   },
   {
     fieldLabel: "Email",
@@ -40,6 +42,7 @@ const frontendFields = [
     sortOrder: 0,
     calendarId: 0,
     isMandatory: true,
+    kind: 2,
   },
   {
     fieldLabel: "Lead Phone",
@@ -49,6 +52,7 @@ const frontendFields = [
     sortOrder: 0,
     calendarId: 0,
     id: "1782303418584",
+    kind: 2,
   },
   {
     fieldName: "lead custom date",
@@ -60,6 +64,7 @@ const frontendFields = [
     description: "",
     isRequired: false,
     isMandatory: false,
+    kind: 1,
   },
 ];
 
@@ -105,6 +110,16 @@ if (apiCustom.length !== 1 || apiCustom[0].Type !== "Date") {
 }
 if (apiCustom[0].CustomFieldId !== "cdb068c5-e711-4bda-abb2-e824991bf959") {
   console.error("fieldId → CustomFieldId failed:", apiCustom[0]);
+  process.exit(1);
+}
+if (apiCustom[0].kind !== 1 || apiCustom[0].Kind !== 1) {
+  console.error("custom field kind/Kind passthrough failed:", apiCustom[0]);
+  process.exit(1);
+}
+
+const apiLead = mapFrontendFormFieldsToApi(basicFields);
+if (apiLead.some((row) => row.kind != null)) {
+  console.error("lead fields should not include kind:", apiLead);
   process.exit(1);
 }
 
