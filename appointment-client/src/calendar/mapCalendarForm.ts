@@ -6,7 +6,7 @@ import {
   resolveApiTypeName,
   type FrontendCalendarFormField,
 } from "../customField/mapFormFieldsToApi.js";
-import { pickForwardedFieldKind, resolveLeadColumnFromField, shouldForwardFieldKind } from "./mapFieldRequirements.js";
+import { isBookableLeadField, LEAD_FIELD_KIND, resolveLeadColumnFromField } from "./mapFieldRequirements.js";
 
 export type { FrontendCalendarFormField };
 function pick<T>(obj: any, ...keys: string[]): T | undefined {
@@ -70,11 +70,9 @@ function labelToCustomFieldKey(label: string): string {
 }
 
 
-function kindFromRow(src: Record<string, unknown>, fieldKey?: string): Record<string, unknown> {
-  const kind = pickForwardedFieldKind({
-    ...src,
-    ...(fieldKey ? { fieldKey } : {}),
-  });
+/** Forward API `kind` / `Kind` onto frontend rows from `GET /CustomField/Form/Get`. */
+function kindFromRow(src: Record<string, unknown>): Record<string, unknown> {
+  const kind = src.kind ?? src.Kind;
   return kind !== undefined ? { kind } : {};
 }
 
@@ -249,9 +247,10 @@ export function mapApiFormFieldToClient(row: unknown): Record<string, unknown> |
     client.HelpText = String(helpText).trim();
   }
 
-  const kind = kindFromRow(src, labelToFieldKey(label));
+  const kind = kindFromRow(src);
   if (kind.kind !== undefined) {
     client.kind = kind.kind;
+    client.Kind = kind.kind;
   }
 
   return client;
@@ -280,9 +279,8 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
       src.FieldLabel != null
     ) {
       const out = { ...src } as FrontendCalendarFormField;
-      if (!shouldForwardFieldKind(src)) {
-        delete out.kind;
-        delete out.Kind;
+      if (isBookableLeadField(src) && out.kind == null && out.Kind == null) {
+        out.kind = LEAD_FIELD_KIND;
       }
       return out;
     }
@@ -317,7 +315,7 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
       isRequired,
       isMandatory: isRequired,
       ...(fieldId ? { fieldId } : {}),
-      ...kindFromRow(src, customKey),
+      ...kindFromRow(src),
       ...(helpText != null && String(helpText).trim() !== ""
         ? { description: String(helpText).trim() }
         : {}),
@@ -340,6 +338,7 @@ export function mapApiFormFieldToFrontend(row: unknown): FrontendCalendarFormFie
     fieldLabel: label,
     fieldKey,
     ...(fieldId ? { fieldId } : {}),
+    ...kindFromRow(src),
     fieldToolTipText: "",
     isRequired,
     isMandatory: isRequired,

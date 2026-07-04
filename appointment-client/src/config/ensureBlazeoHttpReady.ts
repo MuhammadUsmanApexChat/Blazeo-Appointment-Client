@@ -1,35 +1,36 @@
+import { configure } from "@blazeo.com/calendar-client";
 import { resolveBlazeoConnection } from "../calendar/createCalendar.js";
-import { configureAppointmentClient } from "../http/blazeoAuth.js";
 import type { BlazeoConnectionOptions } from "./blazeoConnection.js";
+import { blazeoConnectionToConfigureEnv } from "./blazeoConnection.js";
+import { applyAppointmentAuth } from "../http/blazeoAuth.js";
 
 export type EnsureBlazeoHttpOptions = BlazeoConnectionOptions;
 
 /**
- * Ensures global Blazeo `configure({ baseUrl, … })` runs before any `CalendarModel` / `EventModel` HTTP.
- * Uses the same resolution as {@link resolveBlazeoConnection}: explicit args, existing `getConfig()`,
- * then `blazeoClientDefaults` — so file defaults apply even if the host never called `configure`.
- * When `accessToken` / `getAccessToken` are passed, they are merged into the local auth store.
+ * Ensures global Blazeo `configure()` runs before any `CalendarModel` / `EventModel` HTTP.
+ * Merges `baseUrl` / `consumer` / JWT (`accessToken`, `getAccessToken`) into both
+ * `@blazeo.com/calendar-client` and the appointment-client auth store.
  */
 export function ensureBlazeoHttpReady(options: EnsureBlazeoHttpOptions = {}):
   | { ok: true; baseUrl: string; consumer?: string }
   | { ok: false; error: string } {
-  const explicitBase = options.baseUrl?.trim().replace(/\/+$/, "");
-  const explicitConsumer = options.consumer?.trim() || undefined;
+  const resolved = resolveBlazeoConnection(options);
+  const baseUrl =
+    options.baseUrl?.trim().replace(/\/+$/, "") || resolved.baseUrl;
+  const consumer = options.consumer?.trim() || resolved.consumer;
 
-  if (explicitBase) {
-    configureAppointmentClient({
-      ...options,
-      baseUrl: explicitBase,
-      ...(explicitConsumer ? { consumer: explicitConsumer } : {}),
-    });
-    return {
-      ok: true,
-      baseUrl: explicitBase,
-      ...(explicitConsumer ? { consumer: explicitConsumer } : {}),
-    };
+  const merged: BlazeoConnectionOptions = {
+    ...options,
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(consumer ? { consumer } : {}),
+  };
+
+  const configureEnv = blazeoConnectionToConfigureEnv(merged);
+  if (Object.keys(configureEnv).length > 0) {
+    configure(configureEnv as Parameters<typeof configure>[0]);
   }
+  applyAppointmentAuth(merged);
 
-  const { baseUrl, consumer } = resolveBlazeoConnection(options);
   if (!baseUrl) {
     return {
       ok: false,
@@ -37,10 +38,6 @@ export function ensureBlazeoHttpReady(options: EnsureBlazeoHttpOptions = {}):
         "Blazeo base URL is not set. Call initializeAppointmentClient({ baseUrl }) or configure({ baseUrl }) at app startup, set blazeoClientConfig.baseUrl, or pass baseUrl when calling fetch APIs.",
     };
   }
-  configureAppointmentClient({
-    ...options,
-    baseUrl,
-    ...(consumer ? { consumer } : {}),
-  });
+
   return { ok: true, baseUrl, ...(consumer ? { consumer } : {}) };
 }

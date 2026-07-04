@@ -10,6 +10,9 @@ export const BOOKABLE_LEAD_COLUMNS = [
 
 export type BookableLeadColumn = (typeof BOOKABLE_LEAD_COLUMNS)[number];
 
+/** `Models.Appointment.CustomFieldKind.LeadField` — basic bookable lead rows. */
+export const LEAD_FIELD_KIND = 2;
+
 export type LeadFieldRequirement = {
   column: string;
   enabled: boolean;
@@ -200,6 +203,7 @@ export function mapFieldRequirementToFrontend(
   return {
     fieldLabel: meta.fieldLabel,
     fieldKey: meta.fieldKey,
+    kind: LEAD_FIELD_KIND,
     fieldToolTipText: "",
     isRequired,
     isMandatory: isRequired,

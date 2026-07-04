@@ -1,5 +1,8 @@
-import type { AppointmentClientConfig } from "./syncBlazeoConnection.js";
-export type { AppointmentClientConfig } from "./syncBlazeoConnection.js";
+import type { BlazeoConnectionOptions } from "./blazeoConnection.js";
+export interface AppointmentClientConfig extends BlazeoConnectionOptions {
+    baseUrl: string;
+    fetch?: typeof fetch;
+}
 /**
  * Applies Blazeo connection (same as {@link syncBlazeoConnection}) and marks the client as configured
  * when a non-empty `baseUrl` was written to `@blazeo.com/calendar-client`.

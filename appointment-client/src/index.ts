@@ -250,6 +250,7 @@ export {
   filterCustomFormFieldsFromFetch,
   mergeAppointmentUserDefinedFields,
   LEAD_COLUMN_FRONTEND_META,
+  LEAD_FIELD_KIND,
   splitAppointmentFormFields,
   type BookableLeadColumn,
   type LeadFieldRequirement,

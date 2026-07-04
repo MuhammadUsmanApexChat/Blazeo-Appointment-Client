@@ -94,13 +94,13 @@ function unwrapModelList(raw) {
  * Server still performs multiple HTTP calls; on the client, **`calendarView`** is returned as **one object**.
  */
 export async function fetchCalendarDetails(calendarId, options = {}) {
-    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, includeFormFields: includeFormFieldsOpt, includeFieldRequirements: includeFieldRequirementsOpt, viewFormat = "frontend", baseUrl: optBaseUrl, consumer: optConsumer, } = options;
+    const { includeParticipantsInfo = false, includeUnifiedCalendarView = true, preferAllParticipantOpeningHours = true, includePreferences: includePreferencesOpt, includeLocations: includeLocationsOpt, includeFormFields: includeFormFieldsOpt, includeFieldRequirements: includeFieldRequirementsOpt, viewFormat = "frontend", } = options;
     const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
     const includeLocations = includeLocationsOpt ?? includePreferences;
     const includeFormFields = includeFormFieldsOpt ?? includeUnifiedCalendarView;
     const includeFieldRequirements = includeFieldRequirementsOpt ?? includeFormFields;
     const formFieldFormat = viewFormat === "frontend" ? "frontend" : "api";
-    const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
+    const conn = ensureBlazeoHttpReady(options);
     if (!conn.ok) {
         return {
             calendar: null,

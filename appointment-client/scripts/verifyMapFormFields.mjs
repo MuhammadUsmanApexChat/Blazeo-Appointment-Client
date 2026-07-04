@@ -11,6 +11,7 @@ import {
   calendarPayloadHasFormFields,
   resolveCalendarIdForForm,
   isApiFormFieldRow,
+  mapFieldRequirementsToFrontend,
 } from "../dist/index.js";
 
 const frontend = [
@@ -149,8 +150,24 @@ if (withKind[0].kind !== 1 || withKind[0].Type !== "Date") {
   console.error("kind on custom field save mapping failed:", withKind[0]);
   process.exit(1);
 }
-if (withKind[1].kind != null) {
-  console.error("kind should not be on lead field API payload:", withKind[1]);
+if (withKind[1].kind !== 2 || withKind[1].Kind !== 2) {
+  console.error("kind on lead field save mapping failed:", withKind[1]);
+  process.exit(1);
+}
+
+const createPayload = [
+  { fieldLabel: "First Name", fieldKey: "FirstName", isRequired: true, isMandatory: true, sortOrder: 1, calendarId: "cal-1", kind: 2 },
+  { fieldLabel: "Last Name", fieldKey: "LastName", isRequired: true, isMandatory: true, sortOrder: 2, calendarId: "cal-1", kind: 2 },
+  { fieldLabel: "Email", fieldKey: "Email", isRequired: true, isMandatory: true, sortOrder: 3, calendarId: "cal-1", kind: 2 },
+  { fieldLabel: "Address Details", fieldKey: "CText2", isRequired: false, sortOrder: 0, calendarId: 0, id: 0, kind: 2, fieldType: "Address" },
+];
+const createApi = mapFrontendFormFieldsToApi(createPayload);
+if (createApi.length !== 4) {
+  console.error("create payload mapping count failed:", createApi.length);
+  process.exit(1);
+}
+if (!createApi.every((row) => row.kind === 2 && row.Kind === 2)) {
+  console.error("create payload kind/Kind on every Form/Save row failed:", createApi);
   process.exit(1);
 }
 
@@ -162,8 +179,21 @@ const leadFromApi = mapApiFormFieldToFrontend({
   IsRequired: true,
   kind: 2,
 });
-if (!leadFromApi || leadFromApi.kind != null) {
-  console.error("lead field fetch should not include kind:", leadFromApi);
+if (!leadFromApi || leadFromApi.kind !== 2) {
+  console.error("lead field fetch should include API kind:", leadFromApi);
+  process.exit(1);
+}
+
+const customKindFromApi = mapApiFormFieldToFrontend({
+  Label: "DOB",
+  Type: "Date",
+  CustomFieldId: "014ffabd-3c63-421c-b482-9ce6a65aee53",
+  DataId: "014ffabd-3c63-421c-b482-9ce6a65aee53",
+  IsRequired: false,
+  Kind: 1,
+});
+if (!customKindFromApi || customKindFromApi.kind !== 1) {
+  console.error("custom field fetch should include API Kind:", customKindFromApi);
   process.exit(1);
 }
 
@@ -210,6 +240,22 @@ if (collectAppointmentFormFields(calendarPayload).length !== 3) {
 }
 if (resolveCalendarIdForForm({ calendarId: "abc" }) !== "abc") {
   console.error("resolveCalendarIdForForm failed");
+  process.exit(1);
+}
+
+const leadRequirements = mapFieldRequirementsToFrontend(
+  [
+    { column: "first_name", enabled: true, required: true },
+    { column: "email", enabled: true, required: false },
+  ],
+  "cal-1"
+);
+if (
+  leadRequirements.length !== 2 ||
+  leadRequirements[0].kind !== 2 ||
+  leadRequirements[1].kind !== 2
+) {
+  console.error("lead field requirements should include kind: 2:", leadRequirements);
   process.exit(1);
 }
 

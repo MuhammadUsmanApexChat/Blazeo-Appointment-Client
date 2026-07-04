@@ -1,6 +1,7 @@
 import { CalendarModel } from "@blazeo.com/calendar-client";
 import { getSnapshot } from "mobx-state-tree";
 import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 import {
   unwrapCalendarGetData,
   pickOpeningHoursArrayFromCalendarPayload,
@@ -127,10 +128,7 @@ export async function fetchCalendarDetails(
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
      */
     viewFormat?: "frontend" | "unified";
-    /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
-    baseUrl?: string;
-    consumer?: string;
-  } = {}
+  } & BlazeoConnectionOptions = {}
 ) {
   const {
     includeParticipantsInfo = false,
@@ -141,8 +139,6 @@ export async function fetchCalendarDetails(
     includeFormFields: includeFormFieldsOpt,
     includeFieldRequirements: includeFieldRequirementsOpt,
     viewFormat = "frontend",
-    baseUrl: optBaseUrl,
-    consumer: optConsumer,
   } = options;
   const includePreferences = includePreferencesOpt ?? includeUnifiedCalendarView;
   const includeLocations = includeLocationsOpt ?? includePreferences;
@@ -150,7 +146,7 @@ export async function fetchCalendarDetails(
   const includeFieldRequirements = includeFieldRequirementsOpt ?? includeFormFields;
   const formFieldFormat = viewFormat === "frontend" ? "frontend" : "api";
 
-  const conn = ensureBlazeoHttpReady({ baseUrl: optBaseUrl, consumer: optConsumer });
+  const conn = ensureBlazeoHttpReady(options);
   if (!conn.ok) {
     return {
       calendar: null,

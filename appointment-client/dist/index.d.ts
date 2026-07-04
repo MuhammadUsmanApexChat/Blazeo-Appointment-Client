@@ -1,7 +1,9 @@
 export { initializeAppointmentClient, isAppointmentClientConfigured, } from "./config/initializeAppointmentClient.js";
+export type { AppointmentClientConfig } from "./config/initializeAppointmentClient.js";
 export { syncBlazeoConnection } from "./config/syncBlazeoConnection.js";
 export { ensureBlazeoHttpReady } from "./config/ensureBlazeoHttpReady.js";
 export type { EnsureBlazeoHttpOptions } from "./config/ensureBlazeoHttpReady.js";
+export type { BlazeoConnectionOptions } from "./config/blazeoConnection.js";
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
 export { createCalendarRoot, CalendarRootModel, CalendarSlotModel, EventModel as MSTEventModel, ParticipantModel as MSTParticipantModel } from "./models/CalendarRootModel.js";
@@ -50,7 +52,7 @@ export { fetchCalendarFieldRequirements, getFieldRequirements, type FetchCalenda
 export { removeCalendarFormField, removeAllCalendarFormFields, removeField, removeAllFields, resolveCustomFieldId, type CustomFieldRemoveTarget, type RemoveCustomFieldResult, type RemoveAllCalendarFormFieldsResult, } from "./calendar/removeCalendarFormFields.js";
 export { saveCalendarForm, saveForm, saveCalendarAppointmentForm, resolveCalendarIdForForm, type CalendarFormSaveTarget, type SaveCalendarAppointmentFormResult, type SaveCustomFieldFormOptions, type SaveCustomFieldFormResult, } from "./calendar/saveCalendarForm.js";
 export { saveCalendarFieldRequirements, saveFieldRequirements, type SaveCalendarFieldRequirementsResult, } from "./calendar/saveCalendarFieldRequirements.js";
-export { BOOKABLE_LEAD_COLUMNS, FIELD_KEY_TO_LEAD_COLUMN, hasFormFieldId, resolveLeadColumnFromField, isBookableLeadField, mapFrontendFieldToRequirement, mapFrontendFieldsToRequirements, unwrapFieldRequirementsData, mapFieldRequirementToFrontend, mapFieldRequirementsToFrontend, filterCustomFormFieldsFromFetch, mergeAppointmentUserDefinedFields, LEAD_COLUMN_FRONTEND_META, splitAppointmentFormFields, type BookableLeadColumn, type LeadFieldRequirement, type SplitAppointmentFormFieldsResult, } from "./calendar/mapFieldRequirements.js";
+export { BOOKABLE_LEAD_COLUMNS, FIELD_KEY_TO_LEAD_COLUMN, hasFormFieldId, resolveLeadColumnFromField, isBookableLeadField, mapFrontendFieldToRequirement, mapFrontendFieldsToRequirements, unwrapFieldRequirementsData, mapFieldRequirementToFrontend, mapFieldRequirementsToFrontend, filterCustomFormFieldsFromFetch, mergeAppointmentUserDefinedFields, LEAD_COLUMN_FRONTEND_META, LEAD_FIELD_KIND, splitAppointmentFormFields, type BookableLeadColumn, type LeadFieldRequirement, type SplitAppointmentFormFieldsResult, } from "./calendar/mapFieldRequirements.js";
 /** @deprecated Prefer {@link saveCalendarForm} or `CalendarModel.saveForm`. */
 export { saveCustomFieldForm } from "./customField/saveCustomFieldForm.js";
 export { mapFrontendFormFieldToApi, mapFrontendFormFieldsToApi, normalizeApiTypeName, resolveApiTypeName, mapLeadCustomOptionsToApiOptions, isApiFormFieldRow, resolveHelpTextForApi, FIELD_SUBTYPE_TO_API_TYPE, FIELD_TYPE_SUBTYPE_TO_API_TYPE, FIELD_KEY_TO_API_TYPE, type FrontendCalendarFormField, type MapFormFieldsOptions, } from "./customField/mapFormFieldsToApi.js";
@@ -65,7 +67,9 @@ import { fetchCalendarFieldRequirements } from "./calendar/fetchCalendarFieldReq
 import { removeCalendarFormField, removeAllCalendarFormFields } from "./calendar/removeCalendarFormFields.js";
 import { replaceCalendarAppointmentLocations } from "./calendar/saveCalendarLocations.js";
 export { getCalendarsByCompany, fetchCalendarDetails, getAppointmentsByFilter };
-import { EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel as CoreCalendarParticipantModel, LeadModel as CoreLeadModel, PreferenceModel as CorePreferenceModel, PreferenceScope, configure, getConfig } from "@blazeo.com/calendar-client";
+import { EventModel as CoreEventModel, ParticipantModel as CoreParticipantModel, CalendarParticipantModel as CoreCalendarParticipantModel, LeadModel as CoreLeadModel, PreferenceModel as CorePreferenceModel, PreferenceScope, getConfig } from "@blazeo.com/calendar-client";
+import { configureAppointmentClient as configure, setAccessToken, setGetAccessToken, clearAccessToken, clearAuth, getAuth, ensureValidAccessToken, buildAuthHeaders, isAccessTokenExpired, DEFAULT_TOKEN_REFRESH_SKEW_MS } from "./http/blazeoAuth.js";
+export type { AuthState } from "./http/blazeoAuth.js";
 export declare const CalendarModel: {
     getCalendarsByCompany: typeof getCalendarsByCompany;
     fetchCalendarDetails: typeof fetchCalendarDetails;
@@ -128,7 +132,7 @@ export declare const CalendarModel: {
         env?: object;
     }): unknown;
 };
-export { CoreEventModel as EventModel, CoreParticipantModel as ParticipantModel, CoreCalendarParticipantModel as CalendarParticipantModel, CoreLeadModel as LeadModel, CorePreferenceModel as PreferenceModel, PreferenceScope, CoreEventModel, CoreParticipantModel, configure, getConfig };
+export { CoreEventModel as EventModel, CoreParticipantModel as ParticipantModel, CoreCalendarParticipantModel as CalendarParticipantModel, CoreLeadModel as LeadModel, CorePreferenceModel as PreferenceModel, PreferenceScope, CoreEventModel, CoreParticipantModel, configure, getConfig, setAccessToken, setGetAccessToken, clearAccessToken, clearAuth, getAuth, ensureValidAccessToken, buildAuthHeaders, isAccessTokenExpired, DEFAULT_TOKEN_REFRESH_SKEW_MS, };
 export declare const packageName = "@blazeo.com/appointment-client";
 export declare class CalendarClient {
     name: string;

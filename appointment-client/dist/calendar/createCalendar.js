@@ -1,7 +1,6 @@
 import { CalendarModel, getConfig } from "@blazeo.com/calendar-client";
 import { blazeoClientConfig } from "../config/blazeoClientDefaults.js";
-import { configureAppointmentClient, getAuth } from "../http/blazeoAuth.js";
-import { buildCalendarCreateSuccess } from "./buildCalendarCreateResult.js";
+import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { mapCalendarBOToSnapshot } from "./mapCalendarToBlazeoSnapshot.js";
 function isFailureStatus(res) {
     return res.status !== "success" && res.status !== "Success";
@@ -43,15 +42,6 @@ export function buildModelEnv(baseUrl, consumer, forLocalOnly) {
     if (cfg?.getDefaultOffset != null) {
         env.getDefaultOffset = cfg.getDefaultOffset;
     }
-    const auth = getAuth();
-    if (auth.accessToken != null)
-        env.accessToken = auth.accessToken;
-    if (auth.tokenExpiresAt != null)
-        env.tokenExpiresAt = auth.tokenExpiresAt;
-    if (cfg?.accessToken != null)
-        env.accessToken = cfg.accessToken;
-    if (cfg?.tokenExpiresAt != null)
-        env.tokenExpiresAt = cfg.tokenExpiresAt;
     return env;
 }
 /**
@@ -61,12 +51,7 @@ export function buildModelEnv(baseUrl, consumer, forLocalOnly) {
 export async function createCalendarAsync(calendar, options = {}) {
     try {
         const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-        if (resolvedBase) {
-            configureAppointmentClient({
-                baseUrl: resolvedBase,
-                ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-            });
-        }
+        ensureBlazeoHttpReady(options);
         const baseUrl = resolvedBase;
         const consumer = resolvedConsumer;
         if (!options.localOnly && !baseUrl) {
@@ -98,7 +83,7 @@ export async function createCalendarAsync(calendar, options = {}) {
                 apiResponse: apiRes,
             };
         }
-        return buildCalendarCreateSuccess(calendar, calendarNode, apiRes);
+        return { ok: true, calendar: calendarNode, apiResponse: apiRes };
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -112,12 +97,7 @@ export async function createCalendarAsync(calendar, options = {}) {
 export async function updateCalendarAsync(calendar, options = {}) {
     try {
         const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-        if (resolvedBase) {
-            configureAppointmentClient({
-                baseUrl: resolvedBase,
-                ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-            });
-        }
+        ensureBlazeoHttpReady(options);
         const baseUrl = resolvedBase;
         const consumer = resolvedConsumer;
         const snapshot = mapCalendarBOToSnapshot(calendar);
@@ -172,12 +152,7 @@ export async function deleteCalendarAsync(calendarId, options = {}) {
             return { ok: false, error: "calendarId is required for delete." };
         }
         const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-        if (resolvedBase) {
-            configureAppointmentClient({
-                baseUrl: resolvedBase,
-                ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-            });
-        }
+        ensureBlazeoHttpReady(options);
         const baseUrl = resolvedBase;
         const consumer = resolvedConsumer;
         if (!options.localOnly && !baseUrl) {

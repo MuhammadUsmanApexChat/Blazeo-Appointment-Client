@@ -1,3 +1,4 @@
+import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 import { type UnifiedCalendarView } from "./buildUnifiedCalendarView.js";
 import { type FrontendCalendarView } from "./mapToFrontendCalendarView.js";
 /**
@@ -42,10 +43,7 @@ export declare function fetchCalendarDetails(calendarId: string, options?: {
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
      */
     viewFormat?: "frontend" | "unified";
-    /** Optional; applied with `resolveBlazeoConnection` so `CalendarModel.get` sees `baseUrl` without prior global `configure`. */
-    baseUrl?: string;
-    consumer?: string;
-}): Promise<any>;
+} & BlazeoConnectionOptions): Promise<any>;
 /**
  * Single return value only: unified calendar **`calendarView`** —
  * snapshot fields plus **`members`** (with **`participantInfo`**) plus **`openingHours`**

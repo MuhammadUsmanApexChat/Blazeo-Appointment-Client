@@ -1,11 +1,9 @@
 import { LeadModel } from "@blazeo.com/calendar-client";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
 import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 
-export type BlazeoLeadConnection = {
-  baseUrl?: string;
-  consumer?: string;
-};
+export type BlazeoLeadConnection = BlazeoConnectionOptions;
 
 /** Paging / sort options forwarded to `LeadModel.getByCompany` → `GET /lead/company/get`. */
 export type LeadsByCompanyListOpts = {

@@ -1,7 +1,6 @@
 import { CalendarModel, getConfig } from "@blazeo.com/calendar-client";
 import { blazeoClientConfig } from "../config/blazeoClientDefaults.js";
-import { configureAppointmentClient, getAuth } from "../http/blazeoAuth.js";
-import { buildCalendarCreateSuccess } from "./buildCalendarCreateResult.js";
+import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { mapCalendarBOToSnapshot } from "./mapCalendarToBlazeoSnapshot.js";
 
 function isFailureStatus(res: any) {
@@ -48,11 +47,6 @@ export function buildModelEnv(baseUrl: string | undefined, consumer: string | un
   if (cfg?.getDefaultOffset != null) {
     env.getDefaultOffset = cfg.getDefaultOffset;
   }
-  const auth = getAuth();
-  if (auth.accessToken != null) env.accessToken = auth.accessToken;
-  if (auth.tokenExpiresAt != null) env.tokenExpiresAt = auth.tokenExpiresAt;
-  if (cfg?.accessToken != null) env.accessToken = cfg.accessToken;
-  if (cfg?.tokenExpiresAt != null) env.tokenExpiresAt = cfg.tokenExpiresAt;
   return env;
 }
 
@@ -63,12 +57,7 @@ export function buildModelEnv(baseUrl: string | undefined, consumer: string | un
 export async function createCalendarAsync(calendar: any, options: any = {}) {
   try {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    if (resolvedBase) {
-      configureAppointmentClient({
-        baseUrl: resolvedBase,
-        ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-      });
-    }
+    ensureBlazeoHttpReady(options);
 
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;
@@ -110,7 +99,7 @@ export async function createCalendarAsync(calendar: any, options: any = {}) {
       };
     }
 
-    return buildCalendarCreateSuccess(calendar, calendarNode, apiRes);
+    return { ok: true, calendar: calendarNode, apiResponse: apiRes };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
@@ -124,12 +113,7 @@ export async function createCalendarAsync(calendar: any, options: any = {}) {
 export async function updateCalendarAsync(calendar: any, options: any = {}) {
   try {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    if (resolvedBase) {
-      configureAppointmentClient({
-        baseUrl: resolvedBase,
-        ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-      });
-    }
+    ensureBlazeoHttpReady(options);
 
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;
@@ -196,12 +180,7 @@ export async function deleteCalendarAsync(calendarId: string, options: any = {})
     }
 
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    if (resolvedBase) {
-      configureAppointmentClient({
-        baseUrl: resolvedBase,
-        ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-      });
-    }
+    ensureBlazeoHttpReady(options);
 
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;

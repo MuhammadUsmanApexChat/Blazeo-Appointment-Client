@@ -1,6 +1,5 @@
 import { configure as calendarConfigure, getConfig } from "@blazeo.com/calendar-client";
-import * as CalendarClientNamespace from "@blazeo.com/calendar-client";
-import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
+import * as CalendarClientNamespace from "@blazeo.com/calendar-client";import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 
 export type AuthState = {
   accessToken?: string;
@@ -25,6 +24,15 @@ const authStore: {
 
 function cc(): CalendarClientAuth {
   return CalendarClientNamespace as CalendarClientAuth;
+}
+
+/** Read JWT from calendar-client `getConfig()` (no static `getAuth` — older bundles omit it). */
+function readCalendarClientAccessToken(): string | undefined {
+  const fromConfig = getConfig()?.accessToken;
+  if (fromConfig != null && String(fromConfig).trim() !== "") {
+    return String(fromConfig).trim();
+  }
+  return undefined;
 }
 
 function resolveExpiresAt(options: BlazeoConnectionOptions): string | undefined {
@@ -149,8 +157,9 @@ export function buildAuthHeaders(extra: Record<string, string> = {}): Record<str
     headers.Consumer = consumer;
   }
   const { accessToken } = getAuth();
-  if (!headers.Authorization && accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
+  const token = accessToken || readCalendarClientAccessToken();
+  if (!headers.Authorization && token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 }

@@ -1,5 +1,5 @@
 import { EventModel } from "@blazeo.com/calendar-client";
-import { configureAppointmentClient } from "../http/blazeoAuth.js";
+import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
 import { mapAppointmentEventToPlain, mapAppointmentToEventSnapshot, } from "./mapAppointmentToEventSnapshot.js";
 import { mapBlazeoEventToClientEvent } from "./mapBlazeoEventToClientEvent.js";
@@ -11,17 +11,12 @@ function isFailureStatus(res) {
         return false;
     return res.status !== "success" && res.status !== "Success";
 }
-function ensureConfigure(resolvedBase, resolvedConsumer) {
-    if (resolvedBase) {
-        configureAppointmentClient({
-            baseUrl: resolvedBase,
-            ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-        });
-    }
+function ensureConfigure(options = {}) {
+    ensureBlazeoHttpReady(options);
 }
 async function runEventMutation(input, mode, options) {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    ensureConfigure(resolvedBase, resolvedConsumer);
+    ensureConfigure(options);
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;
     if (!options.localOnly && !baseUrl) {
@@ -125,7 +120,7 @@ export async function rescheduleAppointmentEventAsync(input, options = {}) {
 export async function updateAppointmentEventAsync(input, options = {}) {
     try {
         const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-        ensureConfigure(resolvedBase, resolvedConsumer);
+        ensureConfigure(options);
         const baseUrl = resolvedBase;
         const consumer = resolvedConsumer;
         if (!options.localOnly && !baseUrl) {
@@ -187,7 +182,7 @@ export async function cancelAppointmentEventAsync(appointmentEventId, options = 
             return { ok: false, error: "appointmentEventId is required for cancel." };
         }
         const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-        ensureConfigure(resolvedBase, resolvedConsumer);
+        ensureConfigure(options);
         const baseUrl = resolvedBase;
         if (!options.localOnly && !baseUrl) {
             return {

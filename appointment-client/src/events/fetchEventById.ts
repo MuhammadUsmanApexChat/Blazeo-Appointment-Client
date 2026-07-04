@@ -1,5 +1,6 @@
 import { EventModel } from "@blazeo.com/calendar-client";
-import { configureAppointmentClient } from "../http/blazeoAuth.js";
+import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
+import type { BlazeoConnectionOptions } from "../config/blazeoConnection.js";
 import { getSnapshot, isStateTreeNode } from "mobx-state-tree";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";
 import { mapAppointmentEventToPlain } from "./mapAppointmentToEventSnapshot.js";
@@ -12,18 +13,11 @@ function isFailureStatus(res: any) {
   return (res as any).status !== "success" && (res as any).status !== "Success";
 }
 
-function ensureConfigure(resolvedBase: string | undefined, resolvedConsumer: string | undefined) {
-  if (resolvedBase) {
-    configureAppointmentClient({
-      baseUrl: resolvedBase,
-      ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-    });
-  }
+function ensureConfigure(options: BlazeoConnectionOptions = {}) {
+  ensureBlazeoHttpReady(options);
 }
 
-export type GetEventByIdOptions = {
-  baseUrl?: string;
-  consumer?: string;
+export type GetEventByIdOptions = BlazeoConnectionOptions & {
   localOnly?: boolean;
   /** When true, includes the raw `GET /event/get` envelope on the result (debug only). */
   includeRawGet?: boolean;
@@ -50,7 +44,7 @@ export async function getEventById(
     if (!id) return { ok: false, error: "eventId is required." };
 
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    ensureConfigure(resolvedBase, resolvedConsumer);
+    ensureConfigure(options);
 
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;

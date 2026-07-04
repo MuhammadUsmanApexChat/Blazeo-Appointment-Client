@@ -1,49 +1,50 @@
 /**
- * Verifies JWT auth is wired for direct HTTP helpers (custom fields, locations, events).
- * Run: node scripts/verifyAccessToken.mjs
+ * Verifies access token flows into HTTP headers and calendar-client config.
+ * Run: npm run build && node scripts/verifyAccessToken.mjs
  */
 import {
-  configure,
-  clearAuth,
   buildAuthHeaders,
-  setAccessToken,
+  configure as configureAppointmentClient,
+  ensureBlazeoHttpReady,
+  getAuth,
 } from "../dist/index.js";
-import { blazeoCustomFieldGet } from "../dist/customField/customFieldHttp.js";
+import { getConfig } from "@blazeo.com/calendar-client";
 
-clearAuth();
-configure({
-  baseUrl: "https://example.test",
+configureAppointmentClient({
+  baseUrl: "https://api.example.test",
   consumer: "test-consumer",
-});
-setAccessToken("test-jwt-token");
-
-const headers = buildAuthHeaders({ "Content-Type": "application/json" });
-if (headers.Authorization !== "Bearer test-jwt-token") {
-  console.error("buildAuthHeaders missing Bearer token:", headers);
-  process.exit(1);
-}
-if (headers.Consumer !== "test-consumer") {
-  console.error("buildAuthHeaders missing Consumer:", headers);
-  process.exit(1);
-}
-
-let capturedHeaders = null;
-configure({
-  baseUrl: "https://example.test",
-  fetch: async (_url, init) => {
-    capturedHeaders = init?.headers ?? null;
-    return new Response(JSON.stringify({ status: "success", data: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  },
+  accessToken: "jwt-from-configure",
 });
 
-await blazeoCustomFieldGet("/CustomField/Form/Get", { calendar_id: "cal-1" }, {});
-
-if (!capturedHeaders?.Authorization?.startsWith("Bearer ")) {
-  console.error("blazeoCustomFieldGet did not send Authorization:", capturedHeaders);
+let headers = buildAuthHeaders();
+if (headers.Authorization !== "Bearer jwt-from-configure") {
+  console.error("buildAuthHeaders after configure failed:", headers);
   process.exit(1);
 }
 
-console.log("access token wiring OK");
+const ready = ensureBlazeoHttpReady({
+  accessToken: "jwt-per-call",
+  expiresAtUtc: "2099-01-01T00:00:00.000Z",
+});
+if (!ready.ok) {
+  console.error("ensureBlazeoHttpReady failed:", ready);
+  process.exit(1);
+}
+
+headers = buildAuthHeaders();
+if (headers.Authorization !== "Bearer jwt-per-call") {
+  console.error("buildAuthHeaders after per-call token failed:", headers);
+  process.exit(1);
+}
+
+if (getAuth().accessToken !== "jwt-per-call") {
+  console.error("local getAuth failed:", getAuth());
+  process.exit(1);
+}
+
+if (getConfig()?.accessToken !== "jwt-per-call") {
+  console.error("calendar-client getConfig().accessToken failed:", getConfig());
+  process.exit(1);
+}
+
+console.log("access token sync OK");

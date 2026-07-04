@@ -1,5 +1,5 @@
 import { EventModel } from "@blazeo.com/calendar-client";
-import { configureAppointmentClient } from "../http/blazeoAuth.js";
+import { ensureBlazeoHttpReady } from "../config/ensureBlazeoHttpReady.js";
 import { buildModelEnv, resolveBlazeoConnection } from "../calendar/createCalendar.js";import {
   mapAppointmentEventToPlain,
   mapAppointmentToEventSnapshot,
@@ -13,18 +13,13 @@ function isFailureStatus(res: any) {
   return res.status !== "success" && res.status !== "Success";
 }
 
-function ensureConfigure(resolvedBase: string | undefined, resolvedConsumer: string | undefined) {
-  if (resolvedBase) {
-    configureAppointmentClient({
-      baseUrl: resolvedBase,
-      ...(resolvedConsumer ? { consumer: resolvedConsumer } : {}),
-    });
-  }
+function ensureConfigure(options: Record<string, unknown> = {}) {
+  ensureBlazeoHttpReady(options);
 }
 
 async function runEventMutation(input: any, mode: "create" | "reschedule", options: any) {
   const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-  ensureConfigure(resolvedBase, resolvedConsumer);
+  ensureConfigure(options);
 
   const baseUrl = resolvedBase;
   const consumer = resolvedConsumer;
@@ -147,7 +142,7 @@ export async function rescheduleAppointmentEventAsync(input: any, options: any =
 export async function updateAppointmentEventAsync(input: any, options: any = {}) {
   try {
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    ensureConfigure(resolvedBase, resolvedConsumer);
+    ensureConfigure(options);
 
     const baseUrl = resolvedBase;
     const consumer = resolvedConsumer;
@@ -217,7 +212,7 @@ export async function cancelAppointmentEventAsync(appointmentEventId: string, op
     }
 
     const { baseUrl: resolvedBase, consumer: resolvedConsumer } = resolveBlazeoConnection(options);
-    ensureConfigure(resolvedBase, resolvedConsumer);
+    ensureConfigure(options);
 
     const baseUrl = resolvedBase;
     if (!options.localOnly && !baseUrl) {

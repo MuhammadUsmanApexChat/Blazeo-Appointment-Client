@@ -1,5 +1,6 @@
-import { saveCustomFieldFormApi } from "./customFieldFormHttp.js";
-import type { ApiEnvelope, BlazeoCustomFieldConnection } from "./customFieldHttp.js";import type { FieldTypeDefinition } from "./fetchFieldTypes.js";
+import { blazeoCustomFieldPost } from "./customFieldHttp.js";
+import type { ApiEnvelope, BlazeoCustomFieldConnection } from "./customFieldHttp.js";
+import type { FieldTypeDefinition } from "./fetchFieldTypes.js";
 import {
   mapFrontendFormFieldsToApi,
   type MapFormFieldsOptions,
@@ -44,7 +45,12 @@ export async function saveCustomFieldForm(
   const skipTransform = Boolean(options.skipTransform ?? options.fieldsAlreadyApiFormat);
   const apiFields = mapFrontendFormFieldsToApi(fields ?? [], { skipTransform });
 
-  const envelope = await saveCustomFieldFormApi(id, apiFields, connection);
+  const envelope = await blazeoCustomFieldPost(
+    "/CustomField/Form/Save",
+    apiFields,
+    { calendar_id: id },
+    connection
+  );
   if (envelope.status === "failure" && /base url|not configured/i.test(String(envelope.message))) {
     return {
       ok: false,
