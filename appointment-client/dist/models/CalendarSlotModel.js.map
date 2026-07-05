@@ -1,1 +1,0 @@
-{"version":3,"file":"CalendarSlotModel.js","sourceRoot":"","sources":["../../src/models/CalendarSlotModel.ts"],"names":[],"mappings":"AAAA,OAAO,EAAiB,KAAK,EAAE,MAAM,iBAAiB,CAAC;AAEvD,MAAM,CAAC,MAAM,iBAAiB,GAAG,KAAK,CAAC,KAAK,CAAC,cAAc,EAAE;IAC3D,EAAE,EAAE,KAAK,CAAC,UAAU;IACpB,KAAK,EAAE,KAAK,CAAC,MAAM;IACnB,KAAK,EAAE,KAAK,CAAC,MAAM;IACnB,GAAG,EAAE,KAAK,CAAC,MAAM;CAClB,CAAC,CAAC"}
