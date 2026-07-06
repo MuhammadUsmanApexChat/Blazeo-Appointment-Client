@@ -2,18 +2,24 @@ import { useMemo, useState } from "react";
 import {
   calendarPayloadHasEventReminders,
   calendarPayloadHasFormFields,
+  calendarPayloadHasCrmLeadCustomFields,
   calendarPayloadHasLocations,
   calendarPayloadHasTheme,
+  collectAppointmentFormFields,
+  collectCrmLeadCustomFields,
   collectAppointmentReminders,
   createCalendarAsync,
   createCalendarWithRelationsAsync,
   ensureBlazeoHttpReady,
+  isCrmCalendar,
   mapCalendarFormFieldsToApi,
+  mapCrmLeadCustomFieldsToApi,
   mapCalendarThemeToPreferencePayload,
   mapEmailRemindersToPreferencePayload,
   mapFrontendFieldsToRequirements,
   mapInAppRemindersToPreferencePayload,
   mapSmsRemindersToPreferencePayload,
+  resolveCompanyKeyFromCalendar,
   splitAppointmentFormFields,
 } from "appointment-client";
 import { getSnapshot } from "mobx-state-tree";
@@ -133,6 +139,7 @@ export function CreateCalendarTab() {
   const { effective, connectionOpts } = useBlazeoConnection();
   const [localOnly, setLocalOnly] = useState(false);
   const [saveRelations, setSaveRelations] = useState(true);
+  const [isCrm, setIsCrm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [output, setOutput] = useState("");
@@ -187,28 +194,46 @@ export function CreateCalendarTab() {
 
   const formFieldsPreview = useMemo(() => {
     if (!parsedPayload || !calendarPayloadHasFormFields(parsedPayload)) return null;
-    try {
-      const fields = parsedPayload.appointmentUserDefinedFields ?? [];
-      const { basicFields, customFields } = splitAppointmentFormFields(fields);
-      return {
-        basicFieldRequirements: mapFrontendFieldsToRequirements(basicFields),
-        customFormFields: customFields.length
-          ? mapCalendarFormFieldsToApi({ appointmentUserDefinedFields: customFields })
-          : [],
-      };
-    } catch {
-      return null;
+    const crmFields = collectCrmLeadCustomFields(parsedPayload);
+    const appointmentFields = collectAppointmentFormFields(parsedPayload);
+    const crmPreview =
+      crmFields.length > 0
+        ? {
+            companyKey: resolveCompanyKeyFromCalendar(parsedPayload),
+            crmApiUrl: effective.crmApiUrl,
+            userDefinedFields: mapCrmLeadCustomFieldsToApi(crmFields),
+          }
+        : null;
+    let blazeoPreview = null;
+    if (appointmentFields.length > 0) {
+      try {
+        const { basicFields, customFields } = splitAppointmentFormFields(appointmentFields);
+        blazeoPreview = {
+          basicFieldRequirements: mapFrontendFieldsToRequirements(basicFields),
+          customFormFields: customFields.length
+            ? mapCalendarFormFieldsToApi({ appointmentUserDefinedFields: customFields })
+            : [],
+        };
+      } catch {
+        blazeoPreview = null;
+      }
     }
-  }, [parsedPayload]);
+    if (!crmPreview && !blazeoPreview) return null;
+    return { crmPreview, blazeoPreview };
+  }, [parsedPayload, effective.crmApiUrl]);
 
   const hint = useMemo(() => {
     if (localOnly) return "Local only: no HTTP.";
     if (!effective.baseUrl) return "Set Base URL above first.";
+    const hasCrmLeadFields =
+      parsedPayload != null && calendarPayloadHasCrmLeadCustomFields(parsedPayload);
+    const hasAppointmentFields =
+      parsedPayload != null && collectAppointmentFormFields(parsedPayload).length > 0;
     const hasSms = (smsPreferencePreview?.length ?? 0) > 0;
     const hasEmail = (emailPreferencePreview?.length ?? 0) > 0;
     const hasInApp = (inAppPreferencePreview?.length ?? 0) > 0;
     const hasTheme = (themePreferencePreview?.length ?? 0) > 0;
-    const hasForm = (formFieldsPreview?.basicFieldRequirements?.length ?? 0) > 0 || (formFieldsPreview?.customFormFields?.length ?? 0) > 0;
+    const hasForm = parsedPayload != null && calendarPayloadHasFormFields(parsedPayload);
     const hasLocations = parsedPayload != null && calendarPayloadHasLocations(parsedPayload);
     const relations = saveRelations
       ? "calendar + participants + opening hours"
@@ -222,15 +247,28 @@ export function CreateCalendarTab() {
       prefs.length > 0
         ? ` · then POST /preference/Calendar/{calendarId}/(${prefs.join(", ")})`
         : "";
-    const form = hasForm
-      ? ` · then POST /lead/fields/save (${formFieldsPreview.basicFieldRequirements?.length ?? 0} basic) and/or POST /CustomField/Form/Save (${formFieldsPreview.customFormFields?.length ?? 0} custom)`
-      : "";
+    let form = "";
+    if (hasForm) {
+      const parts = [];
+      if (hasCrmLeadFields) {
+        const crmUrl = effective.crmApiUrl || "(set CRM API URL in connection card)";
+        parts.push(`POST ${crmUrl}/crm/calendar/lead-fields (crmLeadCustomFields)`);
+      }
+      if (hasAppointmentFields) {
+        parts.push(
+          `POST /lead/fields/save (${formFieldsPreview?.blazeoPreview?.basicFieldRequirements?.length ?? 0} basic) and/or POST /CustomField/Form/Save (${formFieldsPreview?.blazeoPreview?.customFormFields?.length ?? 0} custom)`
+        );
+      }
+      form = ` · then ${parts.join(" + ")}`;
+    }
     const locations = hasLocations ? " · then save appointmentLocations" : "";
     return `Will save ${relations}${pref}${locations}${form}.`;
   }, [
     parsedPayload,
     localOnly,
     effective.baseUrl,
+    effective.crmApiUrl,
+    isCrm,
     saveRelations,
     smsPreferencePreview,
     emailPreferencePreview,
@@ -248,6 +286,18 @@ export function CreateCalendarTab() {
       payload = JSON.parse(jsonText);
     } catch (err) {
       setError(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    if (isCrm) {
+      payload = { ...payload, isCrm: true };
+    }
+    const crmMode = isCrmCalendar(payload);
+    if (!localOnly && crmMode && !effective.crmApiUrl) {
+      setError("Set CRM API URL in the Blazeo connection card when using a CRM calendar (isCrm).");
+      return;
+    }
+    if (!localOnly && crmMode && !resolveCompanyKeyFromCalendar(payload)) {
+      setError("CRM calendar payload must include companyKey.");
       return;
     }
     if (!localOnly && !effective.baseUrl) {
@@ -277,6 +327,7 @@ export function CreateCalendarTab() {
         ...connectionOpts,
         baseUrl: effective.baseUrl,
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
+        ...(effective.crmApiUrl ? { crmApiUrl: effective.crmApiUrl } : {}),
       };
       const result = useRelations
         ? await createCalendarWithRelationsAsync(payload, opts)
@@ -341,6 +392,17 @@ export function CreateCalendarTab() {
             Save members &amp; opening hours
           </span>
         </label>
+        <label className="form__label">
+          <span>
+            <input
+              type="checkbox"
+              checked={isCrm}
+              disabled={localOnly}
+              onChange={(e) => setIsCrm(e.target.checked)}
+            />{" "}
+            CRM calendar (<code>isCrm</code>) — save fields via CRM API
+          </span>
+        </label>
       </div>
 
       {smsPreferencePreview?.length ? (
@@ -377,8 +439,29 @@ export function CreateCalendarTab() {
         </div>
       ) : null}
 
-      {formFieldsPreview &&
-      (formFieldsPreview.basicFieldRequirements?.length || formFieldsPreview.customFormFields?.length) ? (
+      {formFieldsPreview?.crmPreview?.userDefinedFields?.length ? (
+        <div className="card">
+          <h2>CRM lead fields preview</h2>
+          <p className="muted small">
+            <code>crmLeadCustomFields</code> → <code>POST &#123;crmApiUrl&#125;/crm/calendar/lead-fields</code> with header{" "}
+            <code>companyKey: {formFieldsPreview.crmPreview.companyKey || "(missing)"}</code>.
+          </p>
+          <pre className="pre-block">
+            {JSON.stringify(
+              {
+                calendarId: "{calendarId}",
+                userDefinedFields: formFieldsPreview.crmPreview.userDefinedFields,
+              },
+              null,
+              2
+            )}
+          </pre>
+        </div>
+      ) : null}
+
+      {formFieldsPreview?.blazeoPreview &&
+      (formFieldsPreview.blazeoPreview.basicFieldRequirements?.length ||
+        formFieldsPreview.blazeoPreview.customFormFields?.length) ? (
         <div className="card">
           <h2>Form fields preview</h2>
           <p className="muted small">
@@ -386,19 +469,19 @@ export function CreateCalendarTab() {
             <code>POST /lead/fields/save</code>. Rows with <code>fieldId</code> →{" "}
             <code>POST /CustomField/Form/Save</code> (after create, using new <code>calendarId</code>).
           </p>
-          {formFieldsPreview.basicFieldRequirements?.length ? (
+          {formFieldsPreview.blazeoPreview.basicFieldRequirements?.length ? (
             <>
               <h3>Basic lead fields</h3>
               <pre className="pre-block">
-                {JSON.stringify(formFieldsPreview.basicFieldRequirements, null, 2)}
+                {JSON.stringify(formFieldsPreview.blazeoPreview.basicFieldRequirements, null, 2)}
               </pre>
             </>
           ) : null}
-          {formFieldsPreview.customFormFields?.length ? (
+          {formFieldsPreview.blazeoPreview.customFormFields?.length ? (
             <>
               <h3>Custom fields</h3>
               <pre className="pre-block">
-                {JSON.stringify(formFieldsPreview.customFormFields, null, 2)}
+                {JSON.stringify(formFieldsPreview.blazeoPreview.customFormFields, null, 2)}
               </pre>
             </>
           ) : null}

@@ -11,6 +11,11 @@ export type { EnsureBlazeoHttpOptions } from "./config/ensureBlazeoHttpReady.js"
 export type { BlazeoConnectionOptions } from "./config/blazeoConnection.js";
 export { blazeoClientConfig } from "./config/blazeoClientDefaults.js";
 export { applyBlazeoClientConfig } from "./config/applyBlazeoDefaults.js";
+export {
+  getCrmApiUrl,
+  resolveCrmApiUrl,
+  setCrmApiUrl,
+} from "./config/crmClientConfig.js";
 export { 
   createCalendarRoot, 
   CalendarRootModel, 
@@ -193,7 +198,9 @@ export {
 } from "./customField/fetchFieldTypes.js";
 export {
   collectAppointmentFormFields,
+  collectCrmLeadCustomFields,
   calendarPayloadHasFormFields,
+  calendarPayloadHasCrmLeadCustomFields,
   mapCalendarFormFieldsToApi,
   mapApiFormFieldToClient,
   mapApiFormFieldsToClient,
@@ -231,6 +238,34 @@ export {
   type SaveCustomFieldFormOptions,
   type SaveCustomFieldFormResult,
 } from "./calendar/saveCalendarForm.js";
+export {
+  isCrmCalendar,
+  resolveCompanyKeyFromCalendar,
+  resolveFetchCompanyKey,
+  resolveFetchCrmMode,
+} from "./calendar/isCrmCalendar.js";
+export {
+  saveCrmCalendarLeadFields,
+  type CrmCalendarLeadFieldsConnection,
+  type SaveCrmCalendarLeadFieldsResult,
+} from "./crm/saveCrmCalendarLeadFields.js";
+export {
+  fetchCrmCalendarLeadFields,
+  fetchCrmCalendarAppointmentForm,
+  type FetchCrmCalendarLeadFieldsConnection,
+  type FetchCrmCalendarLeadFieldsOptions,
+  type FetchCrmCalendarLeadFieldsResult,
+} from "./crm/fetchCrmCalendarLeadFields.js";
+export {
+  mapCrmLeadCustomFieldToApi,
+  mapCrmLeadCustomFieldsToApi,
+  type CrmCalendarLeadFieldApiRow,
+} from "./crm/mapCrmLeadCustomFieldsToApi.js";
+export {
+  mapCrmUserDefinedFieldToFrontend,
+  mapCrmUserDefinedFieldsToFrontend,
+  unwrapCrmUserDefinedFields,
+} from "./crm/mapCrmUserDefinedFieldsToFrontend.js";
 export {
   saveCalendarFieldRequirements,
   saveFieldRequirements,
@@ -328,9 +363,8 @@ export const CalendarModel = {
    */
   saveForm: saveCalendarForm,
   /**
-   * Load booking form — automatic in `fetchCalendarDetails` / `getCalendarView` as
-   * `appointmentUserDefinedFields` on the returned view (basic rows from `GET /lead/fields/get`
-   * plus custom rows from `GET /CustomField/Form/Get`).
+   * Load booking form — merged into `fetchCalendarDetails` as `appointmentUserDefinedFields`.
+   * CRM rows from `GET /crm/calendar/lead-fields/{calendarId}` are added as `crmLeadCustomFields` when present.
    */
   getForm: fetchCalendarAppointmentForm,
   /** Basic lead field config — `GET /lead/fields/get` (also merged into fetch `appointmentUserDefinedFields`). */

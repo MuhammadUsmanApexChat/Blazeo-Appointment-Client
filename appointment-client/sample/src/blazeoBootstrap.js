@@ -19,11 +19,13 @@ export function bootstrapBlazeoClient() {
 
   const envBase = normalizeBase(import.meta.env.VITE_BLAZEO_BASE_URL ?? "");
   const envConsumer = (import.meta.env.VITE_BLAZEO_CONSUMER ?? "").trim();
+  const envCrmApiUrl = normalizeBase(import.meta.env.VITE_CRM_API_URL ?? "");
 
-  if (!envBase) return;
+  if (!envBase && !envCrmApiUrl) return;
 
   pushBlazeoConnection({
     baseUrl: envBase,
     ...(envConsumer ? { consumer: envConsumer } : {}),
+    ...(envCrmApiUrl ? { crmApiUrl: envCrmApiUrl } : {}),
   });
 }

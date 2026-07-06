@@ -9,8 +9,12 @@ import type {
 } from "../customField/saveCustomFieldForm.js";
 import type { ApiEnvelope, BlazeoCustomFieldConnection } from "../customField/customFieldHttp.js";
 import type { FieldTypeDefinition } from "../customField/fetchFieldTypes.js";
+import { mapCrmLeadCustomFieldsToApi } from "../crm/mapCrmLeadCustomFieldsToApi.js";
+import { saveCrmCalendarLeadFields } from "../crm/saveCrmCalendarLeadFields.js";
+import { resolveCompanyKeyFromCalendar } from "./isCrmCalendar.js";
 import {
   collectAppointmentFormFields,
+  collectCrmLeadCustomFields,
   mapCalendarFormFieldsToApi,
 } from "./mapCalendarForm.js";
 import { splitAppointmentFormFields, type LeadFieldRequirement } from "./mapFieldRequirements.js";
@@ -61,6 +65,7 @@ export type SaveCalendarAppointmentFormResult =
       fieldRequirementsSaved?: boolean;
       fieldRequirements?: LeadFieldRequirement[];
       fieldRequirementsEnvelope?: ApiEnvelope;
+      crmLeadCustomFieldsSaved?: boolean;
       appointmentFormSaved?: boolean;
       apiFields?: FieldTypeDefinition[];
       envelope?: ApiEnvelope;
@@ -70,9 +75,12 @@ export type SaveCalendarAppointmentFormResult =
 /**
  * After calendar create/update: save `appointmentUserDefinedFields` from the calendar payload.
  *
- * Rows without `fieldId` that map to bookable lead columns are also saved via
- * `LeadModel.saveFieldRequirements`. All rows are saved via `POST /CustomField/Form/Save`
- * (`CustomFieldModel.saveForm`) with `kind` / `Kind` forwarded when present.
+ * When `crmLeadCustomFields` has one or more items, also saves via
+ * `POST {crmApiUrl}/crm/calendar/lead-fields` with mapped `userDefinedFields`.
+ *
+ * `appointmentUserDefinedFields` always follow the existing Blazeo flow:
+ * bookable lead rows (no `fieldId`) → `POST /lead/fields/save`; all rows →
+ * `POST /CustomField/Form/Save`.
  */
 export async function saveCalendarAppointmentForm(
   calendarId: string,
@@ -80,8 +88,44 @@ export async function saveCalendarAppointmentForm(
   connection: BlazeoCustomFieldConnection = {}
 ): Promise<SaveCalendarAppointmentFormResult> {
   const fields = collectAppointmentFormFields(calendar);
+  const crmLeadFields = collectCrmLeadCustomFields(calendar);
+
+  let crmLeadCustomFieldsSaved = false;
+  let crmEnvelope: ApiEnvelope | undefined;
+
+  if (crmLeadFields.length > 0) {
+    const userDefinedFields = mapCrmLeadCustomFieldsToApi(crmLeadFields);
+    if (userDefinedFields.length > 0) {
+      const companyKey = resolveCompanyKeyFromCalendar(calendar);
+      const crmRes = await saveCrmCalendarLeadFields(
+        calendarId,
+        userDefinedFields,
+        companyKey,
+        connection
+      );
+      if (!crmRes.ok) {
+        return {
+          ok: false,
+          error: crmRes.detail,
+          reason: crmRes.reason,
+          ...("envelope" in crmRes ? { apiResponse: crmRes.envelope } : {}),
+        };
+      }
+      crmLeadCustomFieldsSaved = true;
+      crmEnvelope = crmRes.envelope;
+    }
+  }
+
   if (fields.length === 0) {
-    return { ok: true, skipped: true };
+    if (!crmLeadCustomFieldsSaved) {
+      return { ok: true, skipped: true };
+    }
+    return {
+      ok: true,
+      skipped: false,
+      crmLeadCustomFieldsSaved: true,
+      envelope: crmEnvelope,
+    };
   }
 
   const { basicFields, customFields } = splitAppointmentFormFields(fields);
@@ -134,13 +178,14 @@ export async function saveCalendarAppointmentForm(
     envelope = res.envelope;
   }
 
-  if (!fieldRequirementsSaved && !appointmentFormSaved) {
+  if (!fieldRequirementsSaved && !appointmentFormSaved && !crmLeadCustomFieldsSaved) {
     return { ok: true, skipped: true };
   }
 
   return {
     ok: true,
     skipped: false,
+    ...(crmLeadCustomFieldsSaved ? { crmLeadCustomFieldsSaved, envelope: crmEnvelope } : {}),
     ...(fieldRequirementsSaved
       ? { fieldRequirementsSaved, fieldRequirements, fieldRequirementsEnvelope }
       : {}),

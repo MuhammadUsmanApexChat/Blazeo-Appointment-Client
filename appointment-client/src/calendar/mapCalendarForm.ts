@@ -29,8 +29,29 @@ export function collectAppointmentFormFields(calendar: any): unknown[] {
   return Array.isArray(arr) ? arr : [];
 }
 
+/**
+ * CRM basic lead rows on create/update (`crmLeadCustomFields`).
+ * When this array has items, `POST {crmApiUrl}/crm/calendar/lead-fields` is also called.
+ */
+export function collectCrmLeadCustomFields(calendar: any): unknown[] {
+  const arr = pick<unknown[]>(
+    calendar,
+    "crmLeadCustomFields",
+    "CrmLeadCustomFields",
+    "crmLeadFields",
+    "CrmLeadFields"
+  );
+  return Array.isArray(arr) ? arr : [];
+}
+
 export function calendarPayloadHasFormFields(calendar: any): boolean {
-  return collectAppointmentFormFields(calendar).length > 0;
+  if (collectAppointmentFormFields(calendar).length > 0) return true;
+  if (collectCrmLeadCustomFields(calendar).length > 0) return true;
+  return false;
+}
+
+export function calendarPayloadHasCrmLeadCustomFields(calendar: any): boolean {
+  return collectCrmLeadCustomFields(calendar).length > 0;
 }
 
 /** Map calendar-embedded form rows → `POST /CustomField/Form/Save` body. */

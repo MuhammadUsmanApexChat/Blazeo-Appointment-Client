@@ -34,8 +34,10 @@ function ConnectionSettingsCard() {
   const {
     baseUrlInput,
     consumerInput,
+    crmApiUrlInput,
     setBaseUrlInput,
     setConsumerInput,
+    setCrmApiUrlInput,
     effective,
     connectionOpts,
   } = useBlazeoConnection();
@@ -62,6 +64,12 @@ function ConnectionSettingsCard() {
           <>
             {" "}
             · Consumer: <code>{effective.consumer}</code>
+          </>
+        ) : null}
+        {effective.crmApiUrl ? (
+          <>
+            {" "}
+            · CRM API: <code>{effective.crmApiUrl}</code>
           </>
         ) : null}
       </p>
@@ -94,7 +102,23 @@ function ConnectionSettingsCard() {
             autoComplete="off"
           />
         </label>
+        <label className="form__label">
+          <span>CRM API URL</span>
+          <input
+            type="url"
+            className="form__input"
+            placeholder="https://crm-api.example.com"
+            value={crmApiUrlInput}
+            onChange={(e) => setCrmApiUrlInput(e.target.value)}
+            autoComplete="off"
+          />
+        </label>
       </div>
+      <p className="muted small">
+        For CRM calendars (<code>isCrm: true</code>), set <strong>CRM API URL</strong> above. Custom fields are saved
+        via <code>POST &#123;crmApiUrl&#125;/crm/calendar/lead-fields</code> with the <code>companyKey</code> header
+        from the calendar payload.
+      </p>
     </div>
   );
 }

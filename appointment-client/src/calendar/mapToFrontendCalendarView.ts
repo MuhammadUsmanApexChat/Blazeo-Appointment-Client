@@ -57,6 +57,7 @@ export type FrontendCalendarView = {
     unit: number;
   }>;
   appointmentUserDefinedFields: unknown[];
+  crmLeadCustomFields?: unknown[];
   logoUrl?: string | null;
   color?: string | null;
   themeId?: number | null;
@@ -256,6 +257,15 @@ export function mapToFrontendCalendarView(
       pick(view, "appointmentUserDefinedFields", "AppointmentUserDefinedFields") ??
       pick(raw, "appointmentUserDefinedFields", "AppointmentUserDefinedFields") ??
       [],
+    ...(pick(view, "crmLeadCustomFields", "CrmLeadCustomFields") != null ||
+    pick(raw, "crmLeadCustomFields", "CrmLeadCustomFields") != null
+      ? {
+          crmLeadCustomFields:
+            pick(view, "crmLeadCustomFields", "CrmLeadCustomFields") ??
+            pick(raw, "crmLeadCustomFields", "CrmLeadCustomFields") ??
+            [],
+        }
+      : {}),
     logoUrl,
     color,
     themeId,

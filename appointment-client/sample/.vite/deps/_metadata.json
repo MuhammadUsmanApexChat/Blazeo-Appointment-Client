@@ -1,0 +1,43 @@
+{
+  "hash": "92bf8d1d",
+  "configHash": "b304b024",
+  "lockfileHash": "7b94bcd3",
+  "browserHash": "2ff47eb6",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "a7f185e9",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "9be27d8d",
+      "needsInterop": true
+    },
+    "@blazeo.com/calendar-client": {
+      "src": "../../../node_modules/@blazeo.com/calendar-client/dist/index.mjs",
+      "file": "@blazeo__com_calendar-client.js",
+      "fileHash": "373e07c9",
+      "needsInterop": false
+    },
+    "mobx-state-tree": {
+      "src": "../../../node_modules/mobx-state-tree/dist/mobx-state-tree.module.js",
+      "file": "mobx-state-tree.js",
+      "fileHash": "3077e3dd",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-NY2DNT3L": {
+      "file": "chunk-NY2DNT3L.js"
+    },
+    "chunk-NVHOWBW2": {
+      "file": "chunk-NVHOWBW2.js"
+    },
+    "chunk-BUSYA2B4": {
+      "file": "chunk-BUSYA2B4.js"
+    }
+  }
+}

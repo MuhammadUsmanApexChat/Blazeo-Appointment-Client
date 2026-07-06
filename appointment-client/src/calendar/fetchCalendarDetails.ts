@@ -11,6 +11,10 @@ import { buildUnifiedCalendarView, type UnifiedCalendarView } from "./buildUnifi
 import { fetchCalendarAppointmentLocations } from "./fetchCalendarLocations.js";
 import { fetchCalendarAppointmentForm } from "./fetchCalendarForm.js";
 import { fetchCalendarFieldRequirements } from "./fetchCalendarFieldRequirements.js";
+import { fetchCrmCalendarAppointmentForm } from "../crm/fetchCrmCalendarLeadFields.js";
+import {
+  resolveFetchCompanyKey,
+} from "./isCrmCalendar.js";
 import {
   mapFieldRequirementsToFrontend,
   mergeAppointmentUserDefinedFields,
@@ -102,7 +106,11 @@ function unwrapModelList(raw: any): any[] {
  *    - `GET /Calendar/Participant/OpeningHours/All/Get` when options enable it (`preferAllParticipantOpeningHours`)
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
- * 4. **Preferences** (when `includePreferences`, default with unified view) — parallel
+ * 4. **Custom fields** (when `includeFormFields`, default with unified view):
+ *    - `GET /lead/fields/get` + `GET /CustomField/Form/Get` → `appointmentUserDefinedFields`
+ *    - Also tries `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}` when `companyKey` is available;
+ *      non-empty CRM rows are exposed as `crmLeadCustomFields`
+ * 5. **Preferences** (when `includePreferences`, default with unified view) — parallel
  *    `GET /preference/{SMSEventReminder|EmailEventReminder|InAppEventReminder|CalendarTheme}?keys={calendarId}`;
  *    merged as **`preferences`**, plus **`appointmentReminders`** / **`logoUrl`** / **`color`** when not already on the calendar payload.
  *
@@ -119,10 +127,14 @@ export async function fetchCalendarDetails(
     includePreferences?: boolean;
     /** Load `appointmentLocations` via `GET /Calendar/Location/Get` (default: same as `includePreferences`). */
     includeLocations?: boolean;
-    /** Load `appointmentUserDefinedFields` via `GET /CustomField/Form/Get` (default: same as `includeUnifiedCalendarView`). */
+    /** Load `appointmentUserDefinedFields` via Blazeo `GET /CustomField/Form/Get` + `GET /lead/fields/get`. */
     includeFormFields?: boolean;
     /** Load basic lead fields via `GET /lead/fields/get` (default: same as `includeFormFields`). */
     includeFieldRequirements?: boolean;
+    /** When `companyKey` is available, also try `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}`. */
+    isCrm?: boolean;
+    /** Company key for CRM lead-fields fetch (falls back to calendar payload `companyKey`). */
+    companyKey?: string;
     /**
      * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
      * `unified` — legacy enriched object with `__typename`, `reminderChannelStatuses`, etc.
@@ -229,6 +241,8 @@ export async function fetchCalendarDetails(
       })
     : Promise.resolve(null);
 
+  const fetchCompanyKey = resolveFetchCompanyKey(options, payload);
+
   const formFieldsPromise = includeFormFields
     ? fetchCalendarAppointmentForm(calendarId, {
         baseUrl: conn.baseUrl,
@@ -245,6 +259,14 @@ export async function fetchCalendarDetails(
       })
     : Promise.resolve(null);
 
+  const crmLeadFieldsPromise =
+    includeFormFields && fetchCompanyKey
+      ? fetchCrmCalendarAppointmentForm(calendarId, fetchCompanyKey, {
+          crmApiUrl: options.crmApiUrl,
+          format: formFieldFormat,
+        })
+      : Promise.resolve(null);
+
   const [
     participantsRaw,
     participantsViaGet,
@@ -254,6 +276,7 @@ export async function fetchCalendarDetails(
     appointmentLocations,
     appointmentUserDefinedFields,
     leadFieldRequirements,
+    crmLeadCustomFieldsRaw,
   ] = await Promise.all([
     cal.getParticipants(),
     participantsViaGetPromise,
@@ -263,6 +286,7 @@ export async function fetchCalendarDetails(
     locationsPromise,
     formFieldsPromise,
     fieldRequirementsPromise,
+    crmLeadFieldsPromise,
   ]);
 
   const participantList = mergeParticipantSnapshots(
@@ -389,6 +413,10 @@ export async function fetchCalendarDetails(
     }
   }
 
+  if (includeFormFields && Array.isArray(crmLeadCustomFieldsRaw) && crmLeadCustomFieldsRaw.length > 0) {
+    finalView.crmLeadCustomFields = crmLeadCustomFieldsRaw;
+  }
+
   let responseView: Record<string, any> = finalView;
   if (viewFormat === "frontend") {
     responseView = mapToFrontendCalendarView(
@@ -425,6 +453,13 @@ export async function fetchCalendarDetails(
           : 0,
         formFieldsIncluded: includeFormFields,
         fieldRequirementsIncluded: includeFieldRequirements,
+        crmLeadCustomFieldsIncluded:
+          includeFormFields &&
+          Array.isArray(finalView?.crmLeadCustomFields) &&
+          finalView.crmLeadCustomFields.length > 0,
+        crmLeadCustomFieldCount: Array.isArray(finalView?.crmLeadCustomFields)
+          ? finalView.crmLeadCustomFields.length
+          : 0,
         appointmentUserDefinedFieldCount: Array.isArray(finalView?.appointmentUserDefinedFields)
           ? finalView.appointmentUserDefinedFields.length
           : 0,

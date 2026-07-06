@@ -186,6 +186,7 @@ export function FetchCalendarTab() {
   const { effective, connectionOpts } = useBlazeoConnection();
   const [calendarId, setCalendarId] = useState("");
   const [companyKey, setCompanyKey] = useState("");
+  const [isCrm, setIsCrm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [output, setOutput] = useState("");
@@ -221,6 +222,14 @@ export function FetchCalendarTab() {
       return;
     }
     if (!ensureBaseConfigured()) return;
+    if (isCrm && !effective.crmApiUrl) {
+      setError("Set CRM API URL in the Blazeo connection card when fetching a CRM calendar.");
+      return;
+    }
+    if (isCrm && !companyKey.trim()) {
+      setError("Enter company key for CRM calendar fetch.");
+      return;
+    }
     configureBlazeoFromEffective(effective);
     ensureBlazeoHttpReady({
       baseUrl: effective.baseUrl,
@@ -233,6 +242,8 @@ export function FetchCalendarTab() {
         ...connectionOpts,
         baseUrl: effective.baseUrl,
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
+        ...(effective.crmApiUrl ? { crmApiUrl: effective.crmApiUrl } : {}),
+        ...(isCrm ? { isCrm: true, companyKey: companyKey.trim() } : {}),
       });
 
       if (result) {
@@ -427,8 +438,10 @@ export function FetchCalendarTab() {
           JSON matches the portal edit payload: <code>openingHours</code> with <code>days[]</code>,{" "}
           <code>members[].id</code>, <code>appointmentReminders</code>, theme fields,{" "}
           <code>appointmentUserDefinedFields</code> — basic lead rows from{" "}
-          <code>GET /lead/fields/get</code> (<code>fieldKey</code>, no <code>fieldId</code>) plus custom rows from{" "}
-          <code>GET /CustomField/Form/Get</code> (<code>fieldId</code>, <code>fieldType</code>, …). Raw API requirements
+          <code>GET /lead/fields/get</code> plus custom rows from <code>GET /CustomField/Form/Get</code>.
+          When <code>companyKey</code> is available, also tries{" "}
+          <code>GET &#123;crmApiUrl&#125;/crm/calendar/lead-fields/&#123;calendarId&#125;</code>;
+          non-empty CRM rows are added as <code>crmLeadCustomFields</code>. Raw API requirements
           also appear as <code>leadFieldRequirements</code>.{" "}
           <code>appointmentLocations</code>. Legacy enriched shape:{" "}
           <code>viewFormat: &quot;unified&quot;</code>. Debug: non-enumerable <code>_enriched</code>, <code>_meta</code>. Plus a{" "}
@@ -477,6 +490,29 @@ export function FetchCalendarTab() {
               autoComplete="off"
             />
           </label>
+          <label className="form__label">
+            <span>
+              <input
+                type="checkbox"
+                checked={isCrm}
+                onChange={(e) => setIsCrm(e.target.checked)}
+              />{" "}
+              CRM calendar (<code>isCrm</code>) — fetch fields from CRM API
+            </span>
+          </label>
+          {isCrm ? (
+            <label className="form__label">
+              <span>Company key (CRM header)</span>
+              <input
+                type="text"
+                className="form__input"
+                placeholder="company_key"
+                value={companyKey}
+                onChange={(e) => setCompanyKey(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+          ) : null}
           <button type="submit" className="btn btn--primary" disabled={busy}>
             {busy ? "Loading…" : "Fetch calendar + opening hours"}
           </button>

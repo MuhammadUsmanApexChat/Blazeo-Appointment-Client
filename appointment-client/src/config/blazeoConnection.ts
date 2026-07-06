@@ -3,6 +3,8 @@
  */
 export type BlazeoConnectionOptions = {
   baseUrl?: string;
+  /** CRM API base URL override for `POST {crmApiUrl}/crm/calendar/lead-fields`. */
+  crmApiUrl?: string;
   consumer?: string;
   /** JWT from your identity provider — sent as `Authorization: Bearer …`. */
   accessToken?: string;
