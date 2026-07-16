@@ -43,7 +43,7 @@ export function mapAppointmentToEventSnapshot(
   const description =
     mode === "create"
       ? (input.description ?? null)
-      : (input.description ?? input.notes ?? null);
+      : (input.description ?? null);
 
   const email = input.email ?? input.visitorEmail ?? null;
   const phone = input.phone ?? input.visitorPhone ?? null;
@@ -56,6 +56,7 @@ export function mapAppointmentToEventSnapshot(
     participantId: normalizeGuid(input.participantId),
     title: input.title ?? null,
     description,
+    notes: input.notes,
     startDate: formatYmd(start),
     endDate: formatYmd(end),
     startHour: start.getHours(),
