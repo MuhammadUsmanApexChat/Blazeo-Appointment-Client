@@ -11,7 +11,7 @@ import type { ApiEnvelope, BlazeoCustomFieldConnection } from "../customField/cu
 import type { FieldTypeDefinition } from "../customField/fetchFieldTypes.js";
 import { mapCrmLeadCustomFieldsToApi } from "../crm/mapCrmLeadCustomFieldsToApi.js";
 import { saveCrmCalendarLeadFields } from "../crm/saveCrmCalendarLeadFields.js";
-import { resolveCompanyKeyFromCalendar } from "./isCrmCalendar.js";
+import { isCrmCalendar, resolveCompanyKeyFromCalendar } from "./isCrmCalendar.js";
 import {
   collectAppointmentFormFields,
   collectCrmLeadCustomFields,
@@ -75,10 +75,10 @@ export type SaveCalendarAppointmentFormResult =
 /**
  * After calendar create/update: save `appointmentUserDefinedFields` from the calendar payload.
  *
- * When `crmLeadCustomFields` has one or more items, also saves via
+ * When `isCrm` is true and `crmLeadCustomFields` has one or more items, also saves via
  * `POST {crmApiUrl}/crm/calendar/lead-fields` with mapped `userDefinedFields`.
  *
- * `appointmentUserDefinedFields` always follow the existing Blazeo flow:
+ * `appointmentUserDefinedFields` always follow the existing Blazeo flow (with or without `isCrm`):
  * bookable lead rows (no `fieldId`) → `POST /lead/fields/save`; all rows →
  * `POST /CustomField/Form/Save`.
  */
@@ -93,7 +93,7 @@ export async function saveCalendarAppointmentForm(
   let crmLeadCustomFieldsSaved = false;
   let crmEnvelope: ApiEnvelope | undefined;
 
-  if (crmLeadFields.length > 0) {
+  if (isCrmCalendar(calendar) && crmLeadFields.length > 0) {
     const userDefinedFields = mapCrmLeadCustomFieldsToApi(crmLeadFields);
     if (userDefinedFields.length > 0) {
       const companyKey = resolveCompanyKeyFromCalendar(calendar);

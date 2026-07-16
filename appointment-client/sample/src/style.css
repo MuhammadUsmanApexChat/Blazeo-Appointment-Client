@@ -117,6 +117,10 @@ body {
     grid-template-columns: 1fr 1fr;
     align-items: end;
   }
+
+  .connection-card__token {
+    grid-column: 1 / -1;
+  }
 }
 
 .test-steps {

@@ -105,6 +105,21 @@ if (mapped[0].fieldKey !== "FirstName" || mapped[0].fieldTypeId !== 3) {
 }
 
 requests.length = 0;
+const detailsFromCalendarKey = await fetchCalendarDetails(CALENDAR_ID, {
+  includePreferences: false,
+  includeLocations: false,
+});
+if (!detailsFromCalendarKey?.crmLeadCustomFields?.length) {
+  console.error("Should use companyKey from calendar GET response for CRM probe:", detailsFromCalendarKey);
+  process.exit(1);
+}
+const crmCallsFromCalendarKey = requests.filter((r) => String(r.url).includes("/crm/calendar/lead-fields/"));
+if (crmCallsFromCalendarKey.length !== 1) {
+  console.error("Should call CRM API using companyKey from calendar response:", requests);
+  process.exit(1);
+}
+
+requests.length = 0;
 const details = await fetchCalendarDetails(CALENDAR_ID, {
   isCrm: true,
   companyKey: COMPANY_KEY,
@@ -115,8 +130,11 @@ const details = await fetchCalendarDetails(CALENDAR_ID, {
 const udf = details?.appointmentUserDefinedFields ?? [];
 const crmLead = details?.crmLeadCustomFields ?? [];
 
-if (!udf.some((f) => f.fieldKey === "Email")) {
-  console.error("appointmentUserDefinedFields should include Blazeo lead field:", udf);
+if (udf.some((f) => f.fieldKey === "Email")) {
+  console.error(
+    "CRM calendar should not merge Blazeo lead requirements into appointmentUserDefinedFields:",
+    udf
+  );
   process.exit(1);
 }
 if (!udf.some((f) => f.fieldLabel === "Blazeo Custom" || f.Label === "Blazeo Custom")) {
@@ -131,13 +149,20 @@ if (crmLead[0].fieldTypeId !== 3) {
   console.error("crmLeadCustomFields should include fieldTypeId:", crmLead[0]);
   process.exit(1);
 }
+if (!details?.isCrm) {
+  console.error("CRM data should set isCrm: true on calendar view:", details);
+  process.exit(1);
+}
 
 const crmCalls = requests.filter((r) => String(r.url).includes("/crm/calendar/lead-fields/"));
-const blazeoFieldCalls = requests.filter(
-  (r) => String(r.url).includes("/CustomField/Form/Get") || String(r.url).includes("/lead/fields/get")
-);
-if (crmCalls.length !== 1 || blazeoFieldCalls.length < 2) {
-  console.error("Fetch should call CRM + Blazeo field APIs:", requests);
+const leadCalls = requests.filter((r) => String(r.url).includes("/lead/fields/get"));
+const customFieldCalls = requests.filter((r) => String(r.url).includes("/CustomField/Form/Get"));
+if (crmCalls.length !== 1 || customFieldCalls.length !== 1) {
+  console.error("Fetch should call CRM + CustomField/Form/Get:", requests);
+  process.exit(1);
+}
+if (leadCalls.length !== 0) {
+  console.error("CRM calendar should skip GET /lead/fields/get:", requests);
   process.exit(1);
 }
 
@@ -222,32 +247,31 @@ globalThis.fetch = async (url) => {
 };
 
 const nonCrm = await fetchCalendarDetails(CALENDAR_ID, {
-  isCrm: false,
+  companyKey: COMPANY_KEY,
   includePreferences: false,
   includeLocations: false,
 });
 if (!nonCrm?.appointmentUserDefinedFields?.some((f) => f.fieldKey === "Email")) {
-  console.error("Non-CRM appointmentUserDefinedFields unchanged:", nonCrm?.appointmentUserDefinedFields);
+  console.error("Non-CRM appointmentUserDefinedFields should include Blazeo lead field:", nonCrm?.appointmentUserDefinedFields);
   process.exit(1);
 }
 if (!nonCrm?.appointmentUserDefinedFields?.some((f) => f.fieldLabel === "Blazeo Custom" || f.Label === "Blazeo Custom")) {
   console.error("Non-CRM appointmentUserDefinedFields should include Blazeo custom field:", nonCrm?.appointmentUserDefinedFields);
   process.exit(1);
 }
-const blazeoFieldCallsNonCrm = requests.filter(
-  (r) => String(r.url).includes("/CustomField/Form/Get") || String(r.url).includes("/lead/fields/get")
-);
-if (blazeoFieldCallsNonCrm.length < 2) {
-  console.error("Non-CRM fetch should call Blazeo field APIs:", requests);
-  process.exit(1);
-}
+const leadCallsNonCrm = requests.filter((r) => String(r.url).includes("/lead/fields/get"));
+const customFieldCallsNonCrm = requests.filter((r) => String(r.url).includes("/CustomField/Form/Get"));
 const crmCallsNonCrm = requests.filter((r) => String(r.url).includes("/crm/calendar/lead-fields/"));
-if (crmCallsNonCrm.length !== 1) {
-  console.error("Fetch should still try CRM API when companyKey is available:", requests);
+if (crmCallsNonCrm.length !== 1 || leadCallsNonCrm.length !== 1 || customFieldCallsNonCrm.length !== 1) {
+  console.error("Non-CRM should probe CRM first, then lead + custom field APIs:", requests);
   process.exit(1);
 }
 if (nonCrm?.crmLeadCustomFields != null) {
   console.error("Non-CRM should not set crmLeadCustomFields when CRM returns no data:", nonCrm?.crmLeadCustomFields);
+  process.exit(1);
+}
+if (nonCrm?.isCrm) {
+  console.error("Empty CRM response should not set isCrm:", nonCrm);
   process.exit(1);
 }
 

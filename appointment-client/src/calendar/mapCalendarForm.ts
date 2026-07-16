@@ -31,7 +31,7 @@ export function collectAppointmentFormFields(calendar: any): unknown[] {
 
 /**
  * CRM basic lead rows on create/update (`crmLeadCustomFields`).
- * When this array has items, `POST {crmApiUrl}/crm/calendar/lead-fields` is also called.
+ * When `isCrm` is true and this array has items, `POST {crmApiUrl}/crm/calendar/lead-fields` is called.
  */
 export function collectCrmLeadCustomFields(calendar: any): unknown[] {
   const arr = pick<unknown[]>(

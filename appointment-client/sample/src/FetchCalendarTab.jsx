@@ -226,10 +226,6 @@ export function FetchCalendarTab() {
       setError("Set CRM API URL in the Blazeo connection card when fetching a CRM calendar.");
       return;
     }
-    if (isCrm && !companyKey.trim()) {
-      setError("Enter company key for CRM calendar fetch.");
-      return;
-    }
     configureBlazeoFromEffective(effective);
     ensureBlazeoHttpReady({
       baseUrl: effective.baseUrl,
@@ -243,7 +239,8 @@ export function FetchCalendarTab() {
         baseUrl: effective.baseUrl,
         ...(effective.consumer ? { consumer: effective.consumer } : {}),
         ...(effective.crmApiUrl ? { crmApiUrl: effective.crmApiUrl } : {}),
-        ...(isCrm ? { isCrm: true, companyKey: companyKey.trim() } : {}),
+        ...(isCrm ? { isCrm: true } : {}),
+        ...(companyKey.trim() ? { companyKey: companyKey.trim() } : {}),
       });
 
       if (result) {
@@ -439,7 +436,7 @@ export function FetchCalendarTab() {
           <code>members[].id</code>, <code>appointmentReminders</code>, theme fields,{" "}
           <code>appointmentUserDefinedFields</code> — basic lead rows from{" "}
           <code>GET /lead/fields/get</code> plus custom rows from <code>GET /CustomField/Form/Get</code>.
-          When <code>companyKey</code> is available, also tries{" "}
+          When <code>companyKey</code> is on the calendar <code>GET</code> response it is used for{" "}
           <code>GET &#123;crmApiUrl&#125;/crm/calendar/lead-fields/&#123;calendarId&#125;</code>;
           non-empty CRM rows are added as <code>crmLeadCustomFields</code>. Raw API requirements
           also appear as <code>leadFieldRequirements</code>.{" "}
@@ -502,11 +499,11 @@ export function FetchCalendarTab() {
           </label>
           {isCrm ? (
             <label className="form__label">
-              <span>Company key (CRM header)</span>
+              <span>Company key override (optional)</span>
               <input
                 type="text"
                 className="form__input"
-                placeholder="company_key"
+                placeholder="Uses calendar GET companyKey when empty"
                 value={companyKey}
                 onChange={(e) => setCompanyKey(e.target.value)}
                 autoComplete="off"

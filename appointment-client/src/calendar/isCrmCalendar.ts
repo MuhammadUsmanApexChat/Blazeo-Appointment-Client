@@ -33,14 +33,14 @@ export function resolveFetchCrmMode(
   return isCrmCalendar(calendarPayload);
 }
 
-/** Company key from fetch options or calendar payload. */
+/** Company key from calendar payload, with optional fetch-option override when the calendar has none. */
 export function resolveFetchCompanyKey(
   options: { companyKey?: string },
   calendarPayload?: unknown
 ): string {
-  const fromOptions = String(options.companyKey ?? "").trim();
-  if (fromOptions) return fromOptions;
-  return resolveCompanyKeyFromCalendar(calendarPayload);
+  const fromCalendar = resolveCompanyKeyFromCalendar(calendarPayload);
+  if (fromCalendar) return fromCalendar;
+  return String(options.companyKey ?? "").trim();
 }
 
 /** Company key on the portal calendar create/update payload. */

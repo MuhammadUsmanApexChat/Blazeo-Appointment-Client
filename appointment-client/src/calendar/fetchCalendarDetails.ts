@@ -107,9 +107,10 @@ function unwrapModelList(raw: any): any[] {
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
  * 4. **Custom fields** (when `includeFormFields`, default with unified view):
- *    - `GET /lead/fields/get` + `GET /CustomField/Form/Get` → `appointmentUserDefinedFields`
- *    - Also tries `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}` when `companyKey` is available;
- *      non-empty CRM rows are exposed as `crmLeadCustomFields`
+ *    - First `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}` when `companyKey` is available.
+ *      Non-empty rows → CRM calendar: `crmLeadCustomFields`, skip `GET /lead/fields/get`.
+ *    - Otherwise `GET /lead/fields/get` basic rows are merged into `appointmentUserDefinedFields`.
+ *    - `GET /CustomField/Form/Get` custom rows are always merged into `appointmentUserDefinedFields`.
  * 5. **Preferences** (when `includePreferences`, default with unified view) — parallel
  *    `GET /preference/{SMSEventReminder|EmailEventReminder|InAppEventReminder|CalendarTheme}?keys={calendarId}`;
  *    merged as **`preferences`**, plus **`appointmentReminders`** / **`logoUrl`** / **`color`** when not already on the calendar payload.
@@ -131,9 +132,9 @@ export async function fetchCalendarDetails(
     includeFormFields?: boolean;
     /** Load basic lead fields via `GET /lead/fields/get` (default: same as `includeFormFields`). */
     includeFieldRequirements?: boolean;
-    /** When `companyKey` is available, also try `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}`. */
+    /** When `companyKey` is available, probe CRM lead-fields first to detect CRM calendars. */
     isCrm?: boolean;
-    /** Company key for CRM lead-fields fetch (falls back to calendar payload `companyKey`). */
+    /** Fallback `companyKey` when the calendar `GET` response does not include one. */
     companyKey?: string;
     /**
      * `frontend` — portal edit shape (openingHours with `days[]`, flat `appointmentReminders`, theme fields).
@@ -242,6 +243,7 @@ export async function fetchCalendarDetails(
     : Promise.resolve(null);
 
   const fetchCompanyKey = resolveFetchCompanyKey(options, payload);
+  const shouldLoadFormFields = includeFormFields || includeFieldRequirements;
 
   const formFieldsPromise = includeFormFields
     ? fetchCalendarAppointmentForm(calendarId, {
@@ -251,22 +253,6 @@ export async function fetchCalendarDetails(
       })
     : Promise.resolve(null);
 
-  const fieldRequirementsPromise = includeFieldRequirements
-    ? fetchCalendarFieldRequirements(calendarId, {
-        baseUrl: conn.baseUrl,
-        consumer: conn.consumer,
-        format: "api",
-      })
-    : Promise.resolve(null);
-
-  const crmLeadFieldsPromise =
-    includeFormFields && fetchCompanyKey
-      ? fetchCrmCalendarAppointmentForm(calendarId, fetchCompanyKey, {
-          crmApiUrl: options.crmApiUrl,
-          format: formFieldFormat,
-        })
-      : Promise.resolve(null);
-
   const [
     participantsRaw,
     participantsViaGet,
@@ -275,8 +261,6 @@ export async function fetchCalendarDetails(
     preferencesBundle,
     appointmentLocations,
     appointmentUserDefinedFields,
-    leadFieldRequirements,
-    crmLeadCustomFieldsRaw,
   ] = await Promise.all([
     cal.getParticipants(),
     participantsViaGetPromise,
@@ -285,9 +269,31 @@ export async function fetchCalendarDetails(
     preferencesPromise,
     locationsPromise,
     formFieldsPromise,
-    fieldRequirementsPromise,
-    crmLeadFieldsPromise,
   ]);
+
+  let crmLeadCustomFieldsRaw: Record<string, unknown>[] | null = null;
+  let leadFieldRequirements: LeadFieldRequirement[] | null = null;
+
+  if (shouldLoadFormFields && fetchCompanyKey) {
+    crmLeadCustomFieldsRaw = await fetchCrmCalendarAppointmentForm(calendarId, fetchCompanyKey, {
+      crmApiUrl: options.crmApiUrl,
+      format: formFieldFormat,
+    });
+  }
+
+  const hasCrmLeadFields =
+    Array.isArray(crmLeadCustomFieldsRaw) && crmLeadCustomFieldsRaw.length > 0;
+
+  if (includeFieldRequirements && !hasCrmLeadFields) {
+    const requirements = await fetchCalendarFieldRequirements(calendarId, {
+      baseUrl: conn.baseUrl,
+      consumer: conn.consumer,
+      format: "api",
+    });
+    leadFieldRequirements = Array.isArray(requirements)
+      ? (requirements as LeadFieldRequirement[])
+      : null;
+  }
 
   const participantList = mergeParticipantSnapshots(
     unwrapModelList(participantsRaw),
@@ -399,7 +405,9 @@ export async function fetchCalendarDetails(
     const requirements = (Array.isArray(leadFieldRequirements)
       ? leadFieldRequirements
       : []) as LeadFieldRequirement[];
-    const basicFields = mapFieldRequirementsToFrontend(requirements, calendarId);
+    const basicFields = hasCrmLeadFields
+      ? []
+      : mapFieldRequirementsToFrontend(requirements, calendarId);
     const customFields =
       includeFormFields && Array.isArray(appointmentUserDefinedFields)
         ? appointmentUserDefinedFields
@@ -408,13 +416,20 @@ export async function fetchCalendarDetails(
     if (merged.length > 0) {
       finalView.appointmentUserDefinedFields = merged;
     }
-    if (includeFieldRequirements && requirements.length > 0) {
+    if (includeFieldRequirements && !hasCrmLeadFields && requirements.length > 0) {
       finalView.leadFieldRequirements = requirements;
     }
   }
 
-  if (includeFormFields && Array.isArray(crmLeadCustomFieldsRaw) && crmLeadCustomFieldsRaw.length > 0) {
+  if (includeFormFields && hasCrmLeadFields) {
     finalView.crmLeadCustomFields = crmLeadCustomFieldsRaw;
+  }
+
+  if (hasCrmLeadFields) {
+    finalView.isCrm = true;
+    if (fetchCompanyKey && !finalView.companyKey) {
+      finalView.companyKey = fetchCompanyKey;
+    }
   }
 
   let responseView: Record<string, any> = finalView;
@@ -453,10 +468,8 @@ export async function fetchCalendarDetails(
           : 0,
         formFieldsIncluded: includeFormFields,
         fieldRequirementsIncluded: includeFieldRequirements,
-        crmLeadCustomFieldsIncluded:
-          includeFormFields &&
-          Array.isArray(finalView?.crmLeadCustomFields) &&
-          finalView.crmLeadCustomFields.length > 0,
+        crmLeadCustomFieldsIncluded: hasCrmLeadFields,
+        crmLeadFieldsDetected: hasCrmLeadFields,
         crmLeadCustomFieldCount: Array.isArray(finalView?.crmLeadCustomFields)
           ? finalView.crmLeadCustomFields.length
           : 0,

@@ -182,4 +182,57 @@ if (crmCallsNonCrm.length > 0) {
   process.exit(1);
 }
 
+requests.length = 0;
+const crmWithBasicInUdf = await saveCalendarAppointmentForm("cal-guid-4", {
+  isCrm: true,
+  companyKey: "company_key_123",
+  appointmentUserDefinedFields: fields,
+  crmLeadCustomFields: crmLeadFields,
+});
+if (!crmWithBasicInUdf.ok || crmWithBasicInUdf.skipped) {
+  console.error("CRM with basic rows in appointmentUserDefinedFields failed:", crmWithBasicInUdf);
+  process.exit(1);
+}
+if (
+  !crmWithBasicInUdf.crmLeadCustomFieldsSaved ||
+  !crmWithBasicInUdf.fieldRequirementsSaved ||
+  !crmWithBasicInUdf.appointmentFormSaved
+) {
+  console.error(
+    "CRM should save CRM lead fields, Blazeo lead requirements, and custom form:",
+    crmWithBasicInUdf
+  );
+  process.exit(1);
+}
+const crmCallsWithBasic = requests.filter((r) => String(r.url).includes("/crm/calendar/lead-fields"));
+const leadCallsWithBasic = requests.filter((r) => String(r.url).includes("/lead/fields/save"));
+const customFieldCallsWithBasic = requests.filter((r) => String(r.url).includes("/CustomField/Form/Save"));
+if (crmCallsWithBasic.length !== 1 || leadCallsWithBasic.length !== 1 || customFieldCallsWithBasic.length !== 1) {
+  console.error(
+    "CRM + appointmentUserDefinedFields with basic rows should call CRM, lead save, and custom form:",
+    requests
+  );
+  process.exit(1);
+}
+
+requests.length = 0;
+const crmFieldsWithoutFlag = await saveCalendarAppointmentForm("cal-guid-5", {
+  companyKey: "company_key_123",
+  appointmentUserDefinedFields: customFields,
+  crmLeadCustomFields: crmLeadFields,
+});
+if (!crmFieldsWithoutFlag.ok || crmFieldsWithoutFlag.skipped) {
+  console.error("crmLeadCustomFields without isCrm should still save appointmentUserDefinedFields:", crmFieldsWithoutFlag);
+  process.exit(1);
+}
+if (crmFieldsWithoutFlag.crmLeadCustomFieldsSaved) {
+  console.error("crmLeadCustomFields without isCrm should not call CRM API:", crmFieldsWithoutFlag);
+  process.exit(1);
+}
+const crmCallsWithoutFlag = requests.filter((r) => String(r.url).includes("/crm/calendar/lead-fields"));
+if (crmCallsWithoutFlag.length > 0) {
+  console.error("crmLeadCustomFields without isCrm should not call CRM lead-fields API:", crmCallsWithoutFlag);
+  process.exit(1);
+}
+
 console.log("verifyCrmCalendarLeadFields: ok");

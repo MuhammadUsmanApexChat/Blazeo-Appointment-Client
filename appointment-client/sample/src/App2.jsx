@@ -3,7 +3,7 @@ import {
   BlazeoConnectionProvider,
   useBlazeoConnection,
 } from "./BlazeoConnectionSettings.jsx";
-import { ensureBlazeoHttpReady, getConfig } from "appointment-client";
+import { ensureBlazeoHttpReady, getAuth, getConfig } from "appointment-client";
 import { CalendarTab } from "./CalendarTab.jsx";
 import { EventTab } from "./EventTab.jsx";
 import { ParticipantTab } from "./ParticipantTab.jsx";
@@ -35,9 +35,11 @@ function ConnectionSettingsCard() {
     baseUrlInput,
     consumerInput,
     crmApiUrlInput,
+    accessTokenInput,
     setBaseUrlInput,
     setConsumerInput,
     setCrmApiUrlInput,
+    setAccessTokenInput,
     effective,
     connectionOpts,
   } = useBlazeoConnection();
@@ -45,8 +47,11 @@ function ConnectionSettingsCard() {
   const ready = ensureBlazeoHttpReady({
     baseUrl: effective.baseUrl,
     ...(effective.consumer ? { consumer: effective.consumer } : {}),
+    ...(effective.accessToken ? { accessToken: effective.accessToken } : {}),
   });
   const cfg = getConfig?.() ?? null;
+  const auth = getAuth?.() ?? null;
+  const tokenSet = Boolean(effective.accessToken);
 
   return (
     <div className="card connection-card">
@@ -72,12 +77,25 @@ function ConnectionSettingsCard() {
             · CRM API: <code>{effective.crmApiUrl}</code>
           </>
         ) : null}
+        {tokenSet ? (
+          <>
+            {" "}
+            · JWT: <code>set</code>
+          </>
+        ) : null}
       </p>
       <p className="muted small">
-        Debug: <code>connectionOpts</code> → <code>{JSON.stringify(connectionOpts)}</code> ·{" "}
-        <code>ensureBlazeoHttpReady</code> →{" "}
+        Debug: <code>connectionOpts</code> →{" "}
+        <code>
+          {JSON.stringify({
+            ...connectionOpts,
+            ...(connectionOpts.accessToken ? { accessToken: "(hidden)" } : {}),
+          })}
+        </code>{" "}
+        · <code>ensureBlazeoHttpReady</code> →{" "}
         <code>{ready.ok ? "ok" : "missing_base_url"}</code> · <code>getConfig().baseUrl</code> →{" "}
-        <code>{cfg?.baseUrl ?? "(null)"}</code>
+        <code>{cfg?.baseUrl ?? "(null)"}</code> · <code>getAuth().accessToken</code> →{" "}
+        <code>{auth?.accessToken ? "set" : "(null)"}</code>
       </p>
       <div className="connection-card__row">
         <label className="form__label">
@@ -113,7 +131,24 @@ function ConnectionSettingsCard() {
             autoComplete="off"
           />
         </label>
+        <label className="form__label connection-card__token">
+          <span>JWT access token</span>
+          <input
+            type="password"
+            className="form__input"
+            placeholder="Paste Bearer token (without “Bearer ” prefix)"
+            value={accessTokenInput}
+            onChange={(e) => setAccessTokenInput(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
       </div>
+      <p className="muted small">
+        <strong>JWT access token</strong> is synced to <code>@blazeo.com/calendar-client</code> via{" "}
+        <code>setAccessToken</code> and sent as <code>Authorization: Bearer …</code> on calendar-client API calls.
+        Stored in <code>localStorage</code> for this demo only.
+      </p>
       <p className="muted small">
         For CRM calendars (<code>isCrm: true</code>), set <strong>CRM API URL</strong> above. Custom fields are saved
         via <code>POST &#123;crmApiUrl&#125;/crm/calendar/lead-fields</code> with the <code>companyKey</code> header

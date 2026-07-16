@@ -1,4 +1,10 @@
-import { ensureBlazeoHttpReady, initializeAppointmentClient, setCrmApiUrl } from "appointment-client";
+import {
+  clearAccessToken,
+  ensureBlazeoHttpReady,
+  initializeAppointmentClient,
+  setAccessToken,
+  setCrmApiUrl,
+} from "appointment-client";
 import { configure } from "@blazeo.com/calendar-client";
 
 function normalizeBase(u) {
@@ -16,19 +22,29 @@ export function pushBlazeoConnection(effective) {
   const baseUrl = normalizeBase(effective?.baseUrl ?? "");
   const crmApiUrl = normalizeBase(effective?.crmApiUrl ?? "");
   const consumer = (effective?.consumer ?? "").trim() || undefined;
+  const accessToken = (effective?.accessToken ?? "").trim();
+
+  if (accessToken) {
+    setAccessToken(accessToken);
+  } else {
+    clearAccessToken();
+  }
 
   if (crmApiUrl) {
     setCrmApiUrl(crmApiUrl);
   }
 
-  if (!baseUrl) return;
-
   const cfg = {
-    baseUrl,
+    ...(baseUrl ? { baseUrl } : {}),
     ...(consumer ? { consumer } : {}),
     ...(crmApiUrl ? { crmApiUrl } : {}),
+    ...(accessToken ? { accessToken } : {}),
   };
-  initializeAppointmentClient(cfg);
-  configure(cfg);
+
+  if (baseUrl) {
+    initializeAppointmentClient({ baseUrl, ...cfg });
+    configure(cfg);
+  }
+
   ensureBlazeoHttpReady(cfg);
 }

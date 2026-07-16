@@ -12,6 +12,7 @@ import { pushBlazeoConnection } from "./blazeoPushConnection.js";
 const STORAGE_BASE = "appointment-client-sample:blazeoBaseUrl";
 const STORAGE_CONSUMER = "appointment-client-sample:blazeoConsumer";
 const STORAGE_CRM_API_URL = "appointment-client-sample:crmApiUrl";
+const STORAGE_ACCESS_TOKEN = "appointment-client-sample:accessToken";
 
 function readStored(key) {
   try {
@@ -37,13 +38,14 @@ function normalizeBase(u) {
 }
 
 /** Merge UI fields with packaged defaults (`blazeoClientDefaults`) when inputs are empty. */
-export function mergeBlazeoUiWithFile(uiBaseUrl, uiConsumer, uiCrmApiUrl = "") {
+export function mergeBlazeoUiWithFile(uiBaseUrl, uiConsumer, uiCrmApiUrl = "", uiAccessToken = "") {
   const fileBase = normalizeBase(blazeoClientConfig.baseUrl ?? "");
   const fileConsumer = (blazeoClientConfig.consumer ?? "").trim();
   const baseUrl = normalizeBase(uiBaseUrl) || fileBase || undefined;
   const consumer = (uiConsumer ?? "").trim() || fileConsumer || undefined;
   const crmApiUrl = normalizeBase(uiCrmApiUrl) || undefined;
-  return { baseUrl, consumer, crmApiUrl };
+  const accessToken = (uiAccessToken ?? "").trim() || undefined;
+  return { baseUrl, consumer, crmApiUrl, accessToken };
 }
 
 /**
@@ -60,10 +62,11 @@ export function BlazeoConnectionProvider({ children }) {
   const [baseUrlInput, setBaseUrlInput] = useState(() => readStored(STORAGE_BASE));
   const [consumerInput, setConsumerInput] = useState(() => readStored(STORAGE_CONSUMER));
   const [crmApiUrlInput, setCrmApiUrlInput] = useState(() => readStored(STORAGE_CRM_API_URL));
+  const [accessTokenInput, setAccessTokenInput] = useState(() => readStored(STORAGE_ACCESS_TOKEN));
 
   const effective = useMemo(
-    () => mergeBlazeoUiWithFile(baseUrlInput, consumerInput, crmApiUrlInput),
-    [baseUrlInput, consumerInput, crmApiUrlInput]
+    () => mergeBlazeoUiWithFile(baseUrlInput, consumerInput, crmApiUrlInput, accessTokenInput),
+    [baseUrlInput, consumerInput, crmApiUrlInput, accessTokenInput]
   );
 
   /** Pass into `fetchCalendarDetails`, `createCalendarAsync`, etc. (explicit `baseUrl` for `ensureBlazeoHttpReady`). */
@@ -72,8 +75,9 @@ export function BlazeoConnectionProvider({ children }) {
       ...(effective.baseUrl ? { baseUrl: effective.baseUrl } : {}),
       ...(effective.consumer ? { consumer: effective.consumer } : {}),
       ...(effective.crmApiUrl ? { crmApiUrl: effective.crmApiUrl } : {}),
+      ...(effective.accessToken ? { accessToken: effective.accessToken } : {}),
     }),
-    [effective.baseUrl, effective.consumer, effective.crmApiUrl]
+    [effective.baseUrl, effective.consumer, effective.crmApiUrl, effective.accessToken]
   );
 
   useEffect(() => {
@@ -88,32 +92,35 @@ export function BlazeoConnectionProvider({ children }) {
     writeStored(STORAGE_CRM_API_URL, crmApiUrlInput.trim());
   }, [crmApiUrlInput]);
 
+  useEffect(() => {
+    writeStored(STORAGE_ACCESS_TOKEN, accessTokenInput.trim());
+  }, [accessTokenInput]);
+
   /**
    * Sync global Blazeo `configure` before paint so `CalendarModel.get` /
    * `EventModel.*` static calls never see an empty `getConfig()` after the user
    * has set Base URL (including values restored from localStorage on first paint).
    */
   useLayoutEffect(() => {
-    const { baseUrl, consumer, crmApiUrl } = mergeBlazeoUiWithFile(
-      baseUrlInput,
-      consumerInput,
-      crmApiUrlInput
+    pushBlazeoConnection(
+      mergeBlazeoUiWithFile(baseUrlInput, consumerInput, crmApiUrlInput, accessTokenInput)
     );
-    pushBlazeoConnection({ baseUrl, consumer, crmApiUrl });
-  }, [baseUrlInput, consumerInput, crmApiUrlInput]);
+  }, [baseUrlInput, consumerInput, crmApiUrlInput, accessTokenInput]);
 
   const value = useMemo(
     () => ({
       baseUrlInput,
       consumerInput,
       crmApiUrlInput,
+      accessTokenInput,
       setBaseUrlInput,
       setConsumerInput,
       setCrmApiUrlInput,
+      setAccessTokenInput,
       effective,
       connectionOpts,
     }),
-    [baseUrlInput, consumerInput, crmApiUrlInput, effective, connectionOpts]
+    [baseUrlInput, consumerInput, crmApiUrlInput, accessTokenInput, effective, connectionOpts]
   );
 
   return (

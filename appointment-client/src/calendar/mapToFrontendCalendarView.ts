@@ -1,4 +1,5 @@
 import { collectAppointmentReminders } from "../preference/mapEventReminderPreference.js";
+import { isCrmCalendar } from "./isCrmCalendar.js";
 import {
   collectAppointmentLocations,
   sortFrontendLocations,
@@ -58,6 +59,7 @@ export type FrontendCalendarView = {
   }>;
   appointmentUserDefinedFields: unknown[];
   crmLeadCustomFields?: unknown[];
+  isCrm?: boolean;
   logoUrl?: string | null;
   color?: string | null;
   themeId?: number | null;
@@ -66,6 +68,10 @@ export type FrontendCalendarView = {
   theme?: { color?: string | null; id?: number | null } | null;
   companyKey?: string | null;
 };
+
+function resolveFrontendIsCrm(view: Record<string, unknown>, raw: Record<string, unknown>): boolean {
+  return isCrmCalendar({ ...raw, ...view });
+}
 
 function pick<T>(obj: any, ...keys: string[]): T | undefined {
   for (const k of keys) {
@@ -266,6 +272,7 @@ export function mapToFrontendCalendarView(
             [],
         }
       : {}),
+    ...(resolveFrontendIsCrm(view, raw) ? { isCrm: true } : {}),
     logoUrl,
     color,
     themeId,
