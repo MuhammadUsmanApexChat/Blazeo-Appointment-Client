@@ -199,6 +199,7 @@ export {
 export {
   collectAppointmentFormFields,
   collectCrmLeadCustomFields,
+  collectDeletedCustomFieldIds,
   calendarPayloadHasFormFields,
   calendarPayloadHasCrmLeadCustomFields,
   mapCalendarFormFieldsToApi,

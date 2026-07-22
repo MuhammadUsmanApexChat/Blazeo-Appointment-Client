@@ -15,8 +15,10 @@ import { isCrmCalendar, resolveCompanyKeyFromCalendar } from "./isCrmCalendar.js
 import {
   collectAppointmentFormFields,
   collectCrmLeadCustomFields,
+  collectDeletedCustomFieldIds,
   mapCalendarFormFieldsToApi,
 } from "./mapCalendarForm.js";
+import { removeCalendarFormField } from "./removeCalendarFormFields.js";
 import { splitAppointmentFormFields, type LeadFieldRequirement } from "./mapFieldRequirements.js";
 import { saveCalendarFieldRequirements } from "./saveCalendarFieldRequirements.js";
 
@@ -67,6 +69,8 @@ export type SaveCalendarAppointmentFormResult =
       fieldRequirementsEnvelope?: ApiEnvelope;
       crmLeadCustomFieldsSaved?: boolean;
       appointmentFormSaved?: boolean;
+      customFieldsDeleted?: boolean;
+      deletedCustomFieldIds?: string[];
       apiFields?: FieldTypeDefinition[];
       envelope?: ApiEnvelope;
     }
@@ -74,6 +78,9 @@ export type SaveCalendarAppointmentFormResult =
 
 /**
  * After calendar create/update: save `appointmentUserDefinedFields` from the calendar payload.
+ *
+ * When `deletedCustomFieldIds` is present, those fields are removed first via
+ * `GET /CustomField/RemoveField`, then the existing save flow continues.
  *
  * When `isCrm` is true and `crmLeadCustomFields` has one or more items, also saves via
  * `POST {crmApiUrl}/crm/calendar/lead-fields` with mapped `userDefinedFields`.
@@ -87,6 +94,25 @@ export async function saveCalendarAppointmentForm(
   calendar: any,
   connection: BlazeoCustomFieldConnection = {}
 ): Promise<SaveCalendarAppointmentFormResult> {
+  const deletedCustomFieldIds = collectDeletedCustomFieldIds(calendar);
+  const deletedIds: string[] = [];
+
+  if (deletedCustomFieldIds.length > 0) {
+    for (const fieldId of deletedCustomFieldIds) {
+      try {
+        const removeRes = await removeCalendarFormField(fieldId, connection);
+        if (removeRes.ok) {
+          deletedIds.push(fieldId);
+        } else {
+          console.error(`Failed to remove custom field ${fieldId}:`, removeRes.detail);
+        }
+      } catch (cfError) {
+        console.error(`Failed to remove custom field ${fieldId}:`, cfError);
+      }
+    }
+  }
+
+  const customFieldsDeleted = deletedIds.length > 0;
   const fields = collectAppointmentFormFields(calendar);
   const crmLeadFields = collectCrmLeadCustomFields(calendar);
 
@@ -117,14 +143,14 @@ export async function saveCalendarAppointmentForm(
   }
 
   if (fields.length === 0) {
-    if (!crmLeadCustomFieldsSaved) {
+    if (!crmLeadCustomFieldsSaved && !customFieldsDeleted) {
       return { ok: true, skipped: true };
     }
     return {
       ok: true,
       skipped: false,
-      crmLeadCustomFieldsSaved: true,
-      envelope: crmEnvelope,
+      ...(customFieldsDeleted ? { customFieldsDeleted, deletedCustomFieldIds: deletedIds } : {}),
+      ...(crmLeadCustomFieldsSaved ? { crmLeadCustomFieldsSaved: true, envelope: crmEnvelope } : {}),
     };
   }
 
@@ -178,13 +204,19 @@ export async function saveCalendarAppointmentForm(
     envelope = res.envelope;
   }
 
-  if (!fieldRequirementsSaved && !appointmentFormSaved && !crmLeadCustomFieldsSaved) {
+  if (
+    !fieldRequirementsSaved &&
+    !appointmentFormSaved &&
+    !crmLeadCustomFieldsSaved &&
+    !customFieldsDeleted
+  ) {
     return { ok: true, skipped: true };
   }
 
   return {
     ok: true,
     skipped: false,
+    ...(customFieldsDeleted ? { customFieldsDeleted, deletedCustomFieldIds: deletedIds } : {}),
     ...(crmLeadCustomFieldsSaved ? { crmLeadCustomFieldsSaved, envelope: crmEnvelope } : {}),
     ...(fieldRequirementsSaved
       ? { fieldRequirementsSaved, fieldRequirements, fieldRequirementsEnvelope }

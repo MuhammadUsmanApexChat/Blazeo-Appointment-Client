@@ -44,9 +44,22 @@ export function collectCrmLeadCustomFields(calendar: any): unknown[] {
   return Array.isArray(arr) ? arr : [];
 }
 
+/**
+ * Field ids to remove before form save (`deletedCustomFieldIds` on create/update payload).
+ */
+export function collectDeletedCustomFieldIds(calendar: any): string[] {
+  const arr =
+    pick<unknown[]>(calendar, "deletedCustomFieldIds", "DeletedCustomFieldIds") ?? [];
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+}
+
 export function calendarPayloadHasFormFields(calendar: any): boolean {
   if (collectAppointmentFormFields(calendar).length > 0) return true;
   if (collectCrmLeadCustomFields(calendar).length > 0) return true;
+  if (collectDeletedCustomFieldIds(calendar).length > 0) return true;
   return false;
 }
 
