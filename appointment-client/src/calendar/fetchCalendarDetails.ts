@@ -14,6 +14,7 @@ import { fetchCalendarFieldRequirements } from "./fetchCalendarFieldRequirements
 import { fetchCrmCalendarAppointmentForm } from "../crm/fetchCrmCalendarLeadFields.js";
 import {
   resolveFetchCompanyKey,
+  resolveFetchCrmMode,
 } from "./isCrmCalendar.js";
 import {
   mapFieldRequirementsToFrontend,
@@ -107,8 +108,8 @@ function unwrapModelList(raw: any): any[] {
  *    Then `calendarView` = calendar snapshot fields + **`members`** (with **`participantInfo`**) + **`openingHours`**
  *    (`openingHours[].member` → `members[].id`).
  * 4. **Custom fields** (when `includeFormFields`, default with unified view):
- *    - First `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}` when `companyKey` is available.
- *      Non-empty rows → CRM calendar: `crmLeadCustomFields`, skip `GET /lead/fields/get`.
+ *    - When `isCrm` is true (option or calendar payload) and `companyKey` is available:
+ *      `GET {crmApiUrl}/crm/calendar/lead-fields/{calendarId}` → `crmLeadCustomFields`, skip `GET /lead/fields/get`.
  *    - Otherwise `GET /lead/fields/get` basic rows are merged into `appointmentUserDefinedFields`.
  *    - `GET /CustomField/Form/Get` custom rows are always merged into `appointmentUserDefinedFields`.
  * 5. **Preferences** (when `includePreferences`, default with unified view) — parallel
@@ -132,7 +133,7 @@ export async function fetchCalendarDetails(
     includeFormFields?: boolean;
     /** Load basic lead fields via `GET /lead/fields/get` (default: same as `includeFormFields`). */
     includeFieldRequirements?: boolean;
-    /** When `companyKey` is available, probe CRM lead-fields first to detect CRM calendars. */
+    /** When true, load fields from CRM `GET /crm/calendar/lead-fields/{calendarId}` (requires `companyKey`). */
     isCrm?: boolean;
     /** Fallback `companyKey` when the calendar `GET` response does not include one. */
     companyKey?: string;
@@ -274,7 +275,10 @@ export async function fetchCalendarDetails(
   let crmLeadCustomFieldsRaw: Record<string, unknown>[] | null = null;
   let leadFieldRequirements: LeadFieldRequirement[] | null = null;
 
-  if (shouldLoadFormFields && fetchCompanyKey) {
+  const shouldFetchCrmLeadFields =
+    shouldLoadFormFields && Boolean(fetchCompanyKey) && resolveFetchCrmMode(options, payload);
+
+  if (shouldFetchCrmLeadFields) {
     crmLeadCustomFieldsRaw = await fetchCrmCalendarAppointmentForm(calendarId, fetchCompanyKey, {
       crmApiUrl: options.crmApiUrl,
       format: formFieldFormat,

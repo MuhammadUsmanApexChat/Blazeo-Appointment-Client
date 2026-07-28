@@ -436,7 +436,7 @@ export function FetchCalendarTab() {
           <code>members[].id</code>, <code>appointmentReminders</code>, theme fields,{" "}
           <code>appointmentUserDefinedFields</code> — basic lead rows from{" "}
           <code>GET /lead/fields/get</code> plus custom rows from <code>GET /CustomField/Form/Get</code>.
-          When <code>companyKey</code> is on the calendar <code>GET</code> response it is used for{" "}
+          When <code>isCrm</code> is true and <code>companyKey</code> is available, fields come from{" "}
           <code>GET &#123;crmApiUrl&#125;/crm/calendar/lead-fields/&#123;calendarId&#125;</code>;
           non-empty CRM rows are added as <code>crmLeadCustomFields</code>. Raw API requirements
           also appear as <code>leadFieldRequirements</code>.{" "}

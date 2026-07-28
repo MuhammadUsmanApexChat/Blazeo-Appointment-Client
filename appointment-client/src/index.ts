@@ -365,7 +365,7 @@ export const CalendarModel = {
   saveForm: saveCalendarForm,
   /**
    * Load booking form — merged into `fetchCalendarDetails` as `appointmentUserDefinedFields`.
-   * CRM rows from `GET /crm/calendar/lead-fields/{calendarId}` are added as `crmLeadCustomFields` when present.
+   * When `isCrm` is true, CRM rows from `GET /crm/calendar/lead-fields/{calendarId}` are added as `crmLeadCustomFields`.
    */
   getForm: fetchCalendarAppointmentForm,
   /** Basic lead field config — `GET /lead/fields/get` (also merged into fetch `appointmentUserDefinedFields`). */
